@@ -1271,7 +1271,7 @@
             </button>
             <div class="nav-menu" id="navMenu">
                 <div class="file-input-wrapper">
-                    <button class="btn btn-info" onclick="document.getElementById('importJson').click()">
+                    <button class="btn btn-info">
                         📂 Importar JSON
                     </button>
                     <input type="file" id="importJson" accept=".json" onchange="importJSON(event)">
@@ -2409,7 +2409,7 @@
                                 </div>
                             </div>
                             
-                             <div class="checklist-question">
+                            <div class="checklist-question">
                                 <div class="question-text">Os ventiladores possuem grade de proteção?</div>
                                 <div class="answer-options">
                                     <div class="answer-option">
@@ -2419,7 +2419,7 @@
                                     <div class="answer-option">
                                         <input type="radio" id="escr4_nao" name="escr4" value="nao">
                                         <label for="escr4_nao">Não</label>
-                                    <                                    </div>
+                                    </div>
                                     <div class="answer-option">
                                         <input type="radio" id="escr4_na" name="escr4" value="na">
                                         <label for="escr4_na">N/A</label>
@@ -2599,7 +2599,7 @@
                         🔤 Texto
                     </button>
                     <input type="color" class="color-picker" id="colorPicker" value="#ff0000">
-                    <button class="editor-tool" onclick="clearAnnotations()" title="Desfazer última anotação">
+                                       <button class="editor-tool" onclick="clearAnnotations()" title="Desfazer última anotação">
                         ↩️ Desfazer
                     </button>
                     <button class="editor-tool" onclick="saveEditedPhoto()" style="background: var(--success);">
@@ -2703,114 +2703,194 @@
             initializeApp();
         });
         
-        function initializeApp() {
-            // Carrega dados do localStorage
-            loadDataFromStorage();
+  function initializeApp() {
+    // Carrega dados do localStorage
+    loadDataFromStorage();
+    
+    // TENTA RESTAURAR O ESTADO DO FORMULÁRIO DE FORMA LIMPA
+    try {
+        const formState = localStorage.getItem('formState');
+        if (formState) {
+            const state = JSON.parse(formState);
             
-            // Configura datas iniciais
+            // 1. Restaura os campos de texto e datas
+            document.getElementById('areaName').value = state.areaName || '';
+            document.getElementById('inspectionDate').value = state.inspectionDate || '';
+            document.getElementById('deadlineDate').value = state.deadlineDate || '';
+            document.getElementById('location').value = state.location || '';
+            document.getElementById('observations').value = state.observations || '';
+            
+            // 2. Restaura o nível de risco
+            if (state.selectedRiskLevel) {
+                setRiskLevel(state.selectedRiskLevel);
+            }
+            
+            // 3. Restaura as fotos da inspeção para a variável
+            if (state.photos && Array.isArray(state.photos)) {
+                photos = state.photos;
+            }
+            
+            // 4. Restaura a foto da área
+            if (state.areaPhoto) {
+                document.getElementById('areaPhotoGallery').innerHTML = `
+                    <div class="photo-item">
+                        <img src="${state.areaPhoto}" alt="Foto da Área">
+                        <div class="photo-actions">
+                            <button class="photo-action-btn" onclick="deleteAreaPhoto(event, this)">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    <div class="add-photo-btn" onclick="addAreaPhoto()">
+                        <span>📷</span>
+                        <small>Adicionar mais fotos</small>
+                    </div>
+                `;
+            }
+            
+            // 5. Restaura os dados do checklist para a variável
+            if (state.checklistMemory && typeof state.checklistMemory === 'object') {
+                checklistMemory = state.checklistMemory;
+            }
+            
+            console.log('Estado do formulário restaurado com sucesso.');
+        } else {
+            // Se não há estado salvo, configura as datas padrão
             const today = new Date();
             document.getElementById('inspectionDate').valueAsDate = today;
-            
-            // Define deadline para 30 dias após a inspeção
             const deadline = new Date(today);
             deadline.setDate(deadline.getDate() + 30);
             document.getElementById('deadlineDate').valueAsDate = deadline;
+        }
+    } catch (error) {
+        console.error('Erro ao restaurar estado do formulário:', error);
+        // Em caso de erro, limpa o estado para evitar problemas
+        localStorage.removeItem('formState');
+    }
+    
+    // Renderiza inspeções e estatísticas
+    renderInspections();
+    updateStats();
+    
+    // Configura event listeners
+    setupEventListeners();
+    
+    // Agora, renderiza as partes que dependem do estado
+    renderPhotoGallery();
+    
+    // Aplica o estado do checklist ao DOM e atualiza o resumo
+    applyChecklistStateToDOM();
+    updateChecklistSummary();
+    
+    // Inicia backup automático
+    startAutoBackup();
+}
+    function setupEventListeners() {
+    // Form submit - ÚNICO lugar onde o salvamento da inspeção deve ocorrer
+    document.getElementById('inspectionForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        saveInspection();
+    });
+    
+    // Auto-save em mudanças nos campos (APENAS se não estiver editando)
+    const formFields = document.querySelectorAll('#inspectionForm input[type="text"], #inspectionForm textarea, #inspectionForm input[type="date"]');
+    formFields.forEach(field => {
+        field.addEventListener('input', function() {
+            if (!currentEditingInspectionId) {
+                saveFormState();
+            }
+        });
+    });
+    
+    // Checklist listeners - Salva o estado na memória e no localStorage
+    document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
+        input.addEventListener('change', function() {
+            // Salva na memória temporária
+            const tabId = this.closest('.checklist-content').id;
+            if (!checklistMemory[tabId]) {
+                checklistMemory[tabId] = {};
+            }
+            checklistMemory[tabId][this.name] = this.value;
             
-            // Renderiza inspeções e estatísticas
-            renderInspections();
-            updateStats();
+            // Salva o estado completo no localStorage
+            if (!currentEditingInspectionId) {
+                saveFormState();
+            }
+            
             updateChecklistSummary();
-            
-            // Configura event listeners
-            setupEventListeners();
-            
-            // Inicia backup automático
-            startAutoBackup();
+        });
+    });
+    
+    // Previne perda de dados ao sair da página
+    window.addEventListener('beforeunload', function(e) {
+        if (hasUnsavedChanges()) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+}
+       function loadDataFromStorage() {
+    try {
+        // Carrega inspeções
+        const savedInspections = localStorage.getItem('inspections');
+        if (savedInspections) {
+            inspections = JSON.parse(savedInspections);
         }
         
-        function setupEventListeners() {
-            // Form submit
-            document.getElementById('inspectionForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                saveInspection();
-            });
-            
-            // Auto-save em mudanças nos campos (APENAS para campos de texto, não para eventos de mudança)
-            const formFields = document.querySelectorAll('#inspectionForm input[type="text"], #inspectionForm textarea, #inspectionForm input[type="date"]');
-            formFields.forEach(field => {
-                field.addEventListener('input', saveFormState);
-            });
-            
-            // Checklist listeners - REMOVIDO saveFormState() para evitar salvamento automático
-            document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
-                input.addEventListener('change', function() {
-                    // Salva APENAS na memória temporária
-                    const tabId = this.closest('.checklist-content').id;
-                    if (!checklistMemory[tabId]) {
-                        checklistMemory[tabId] = {};
-                    }
-                    checklistMemory[tabId][this.name] = this.value;
-                    
-                    updateChecklistSummary();
-                });
-            });
-            
-            // Previne perda de dados ao sair da página
-            window.addEventListener('beforeunload', function(e) {
-                if (hasUnsavedChanges()) {
-                    e.preventDefault();
-                    e.returnValue = '';
-                }
-            });
-        }
+        // NÃO RESTAURA NADA DO FORMSTATE AQUI
+        // A restauração será feita manualmente apenas quando necessário
         
-        function loadDataFromStorage() {
-            try {
-                // Carrega inspeções
-                const savedInspections = localStorage.getItem('inspections');
-                if (savedInspections) {
-                    inspections = JSON.parse(savedInspections);
-                }
-                
-                // Carrega estado do formulário APENAS se não estiver editando
-                if (!currentEditingInspectionId) {
-                    const formState = localStorage.getItem('formState');
-                    if (formState) {
-                        const state = JSON.parse(formState);
-                        restoreFormState(state);
-                    }
-                }
-                
-                console.log('Dados carregados com sucesso');
-            } catch (error) {
-                console.error('Erro ao carregar dados:', error);
-                showToast('Erro ao carregar dados salvos', 'error');
+        console.log('Dados carregados com sucesso');
+    } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+        showToast('Erro ao carregar dados salvos', 'error');
+    }
+}
+        
+  function saveFormState() {
+    // BLOQUEIO TOTAL: Não salva NADA se estiver editando uma inspeção existente
+    if (currentEditingInspectionId) {
+        console.log("Salvamento de estado do formulário bloqueado durante a edição.");
+        return;
+    }
+    
+    try {
+        // Captura o estado mais recente do checklist diretamente do DOM
+        const currentChecklistState = {};
+        document.querySelectorAll('.checklist-question input[type="radio"]:checked').forEach(input => {
+            const tabId = input.closest('.checklist-content').id;
+            if (!currentChecklistState[tabId]) {
+                currentChecklistState[tabId] = {};
             }
-        }
+            currentChecklistState[tabId][input.name] = input.value;
+        });
+
+        // Captura a foto da área atual
+        const areaPhotoGallery = document.getElementById('areaPhotoGallery');
+        const areaPhotoImg = areaPhotoGallery.querySelector('img');
+        const areaPhoto = areaPhotoImg ? areaPhotoImg.src : null;
+
+        const formState = {
+            areaName: document.getElementById('areaName').value,
+            inspectionDate: document.getElementById('inspectionDate').value,
+            deadlineDate: document.getElementById('deadlineDate').value,
+            location: document.getElementById('location').value,
+            observations: document.getElementById('observations').value,
+            selectedRiskLevel: selectedRiskLevel,
+            photos: photos,
+            areaPhoto: areaPhoto,
+            checklistMemory: currentChecklistState,
+            timestamp: new Date().toISOString()
+        };
         
-        function saveFormState() {
-            try {
-                const formState = {
-                    areaName: document.getElementById('areaName').value,
-                    inspectionDate: document.getElementById('inspectionDate').value,
-                    deadlineDate: document.getElementById('deadlineDate').value,
-                    location: document.getElementById('location').value,
-                    observations: document.getElementById('observations').value,
-                    selectedRiskLevel: selectedRiskLevel,
-                    photos: photos,
-                    checklistMemory: checklistMemory,
-                    timestamp: new Date().toISOString()
-                };
-                
-                localStorage.setItem('formState', JSON.stringify(formState));
-                
-                // Atualiza indicador de backup
-                updateBackupIndicator();
-            } catch (error) {
-                console.error('Erro ao salvar estado do formulário:', error);
-            }
-        }
+        localStorage.setItem('formState', JSON.stringify(formState));
         
+        // Atualiza indicador de backup
+        updateBackupIndicator();
+    } catch (error) {
+        console.error('Erro ao salvar estado do formulário:', error);
+    }
+}
         function restoreFormState(state) {
             if (!state) return;
             
@@ -2872,6 +2952,7 @@
                 const backup = {
                     inspections: inspections,
                     formState: localStorage.getItem('formState'),
+                    checklistData: localStorage.getItem('checklistData'),
                     checklistMemory: localStorage.getItem('checklistMemory'),
                     timestamp: new Date().toISOString(),
                     version: '1.0'
@@ -3007,155 +3088,219 @@
         }
         
         // Função para atualizar o resumo do checklist
-        function updateChecklistSummary() {
-            const allQuestions = document.querySelectorAll('.checklist-question input[type="radio"]');
-            const answeredQuestions = document.querySelectorAll('.checklist-question input[type="radio"]:checked');
-            const yesAnswers = document.querySelectorAll('.checklist-question input[type="radio"][value="sim"]:checked');
-            const noAnswers = document.querySelectorAll('.checklist-question input[type="radio"][value="nao"]:checked');
-            
-            const total = allQuestions.length / 3; // Cada pergunta tem 3 opções (sim, não, NA)
-            const answered = answeredQuestions.length;
-            const yes = yesAnswers.length;
-            const no = noAnswers.length;
-            
-            document.getElementById('totalQuestions').textContent = total;
-            document.getElementById('answeredQuestions').textContent = answered;
-            document.getElementById('yesAnswers').textContent = yes;
-            document.getElementById('noAnswers').textContent = no;
-            
-            // Calcula a pontuação
-            let score = 0;
-            if (answered > 0) {
-                score = Math.round((yes / answered) * 100);
+     function updateChecklistSummary() {
+    // Calcula o resumo com base nos dados da memória (checklistMemory)
+    // Isso é mais confiável do que consultar o DOM
+    let totalQuestions = 0;
+    let answeredQuestions = 0;
+    let yesAnswers = 0;
+    let noAnswers = 0;
+
+    if (checklistMemory && typeof checklistMemory === 'object') {
+        Object.keys(checklistMemory).forEach(tabId => {
+            if (checklistMemory[tabId] && typeof checklistMemory[tabId] === 'object') {
+                Object.keys(checklistMemory[tabId]).forEach(key => {
+                    totalQuestions++;
+                    const value = checklistMemory[tabId][key];
+                    if (value !== 'na') { // Considera 'na' como não respondido para a contagem
+                        answeredQuestions++;
+                    }
+                    if (value === 'sim') {
+                        yesAnswers++;
+                    } else if (value === 'nao') {
+                        noAnswers++;
+                    }
+                });
             }
-            
-            const scoreElement = document.getElementById('summaryScore');
-            scoreElement.textContent = `Pontuação: ${score}%`;
-            
-            // Define a cor com base na pontuação
-            scoreElement.className = 'summary-score';
-            if (score >= 80) {
-                scoreElement.classList.add('score-good');
-            } else if (score >= 50) {
-                scoreElement.classList.add('score-medium');
-            } else {
-                scoreElement.classList.add('score-bad');
+        });
+    }
+    
+    document.getElementById('totalQuestions').textContent = totalQuestions;
+    document.getElementById('answeredQuestions').textContent = answeredQuestions;
+    document.getElementById('yesAnswers').textContent = yesAnswers;
+    document.getElementById('noAnswers').textContent = noAnswers;
+    
+    // Calcula a pontuação
+    let score = 0;
+    if (answeredQuestions > 0) {
+        score = Math.round((yesAnswers / answeredQuestions) * 100);
+    }
+    
+    const scoreElement = document.getElementById('summaryScore');
+    scoreElement.textContent = `Pontuação: ${score}%`;
+    
+    // Define a cor com base na pontuação
+    scoreElement.className = 'summary-score';
+    if (score >= 80) {
+        scoreElement.classList.add('score-good');
+    } else if (score >= 50) {
+        scoreElement.classList.add('score-medium');
+    } else {
+        scoreElement.classList.add('score-bad');
+    }
+}
+// ... (código da função updateChecklistSummary()) ...
+    
+
+// =================================================================
+// ADICIONE A NOVA FUNÇÃO AQUI, LOGO ABAIXO
+// =================================================================
+
+function applyChecklistStateToDOM() {
+    // Limpa todos os checkboxes antes de aplicar o estado
+    document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
+        input.checked = false;
+    });
+
+    // Percorre todos os dados do checklist e marca os rádios correspondentes
+    if (checklistMemory && typeof checklistMemory === 'object') {
+        Object.keys(checklistMemory).forEach(tabId => {
+            if (checklistMemory[tabId] && typeof checklistMemory[tabId] === 'object') {
+                Object.keys(checklistMemory[tabId]).forEach(key => {
+                    const value = checklistMemory[tabId][key];
+                    const input = document.querySelector(`input[name="${key}"][value="${value}"]`);
+                    if (input) {
+                        input.checked = true;
+                    }
+                });
             }
-        }
-        
+        });
+    }
+}
+
+
+// ... (o resto do seu código JavaScript continua aqui) ...
+
+function getRiskLabel(level) {
+    // ...
+}
         // Função para coletar dados do checklist
         function collectChecklistData() {
-            const data = {};
-            
-            // Coleta todos os dados ativos do formulário
-            document.querySelectorAll('.checklist-question input[type="radio"]:checked').forEach(input => {
-                data[input.name] = input.value;
-            });
-            
-            // Também coleta dados da memória
-            Object.keys(checklistMemory).forEach(tabId => {
-                Object.keys(checklistMemory[tabId]).forEach(key => {
-                    data[key] = checklistMemory[tabId][key];
-                });
-            });
-            
-            return data;
-        }
+    const data = {};
+    
+    // Coleta todos os dados ativos do formulário
+    document.querySelectorAll('.checklist-question input[type="radio"]:checked').forEach(input => {
+        data[input.name] = input.value;
+    });
+    
+    // Também coleta dados da memória
+    Object.keys(checklistMemory).forEach(tabId => {
+        Object.keys(checklistMemory[tabId]).forEach(key => {
+            data[key] = checklistMemory[tabId][key];
+        });
+    });
+    
+    return data;
+}
         
         // Função principal de salvamento de inspeção
-        function saveInspection() {
-            console.log('Iniciando salvamento da inspeção...');
-            
-            // Validação dos campos obrigatórios
-            const areaName = document.getElementById('areaName').value.trim();
-            const inspectionDate = document.getElementById('inspectionDate').value;
-            const deadlineDate = document.getElementById('deadlineDate').value;
-            
-            if (!areaName) {
-                showToast('Por favor, preencha o nome da área', 'error');
-                return;
-            }
-            
-            if (!inspectionDate) {
-                showToast('Por favor, selecione a data da inspeção', 'error');
-                return;
-            }
-            
-            if (!deadlineDate) {
-                showToast('Por favor, defina o prazo para conclusão', 'error');
-                return;
-            }
-            
-            if (!selectedRiskLevel) {
-                showToast('Por favor, selecione um nível de risco geral', 'error');
-                return;
-            }
+    function saveInspection(event) {
+    // BLOQUEIO FINAL E DEFINITIVO
+    // Se o evento não for nulo e não for um 'submit', cancela a execução.
+    // Isso impede que cliques em outros botões acionem o salvamento.
+    if (event && event.type !== 'submit') {
+        console.log("Salvamento bloqueado: o evento não é um 'submit'.");
+        event.preventDefault(); // Previne o comportamento padrão
+        return;
+    }
 
-            if (photos.length === 0) {
-                showToast('Por favor, adicione pelo menos uma foto', 'error');
-                return;
-            }
+    // BLOQUEIO EXTRA: Se não estamos no modo de edição e o evento não veio do botão de submit, não faz nada.
+    if (!currentEditingInspectionId && (!event || event.target.type !== 'submit')) {
+        console.log("Tentativa de salvamento bloqueada: evento não é de submit.");
+        return;
+    }
+
+    console.log('Iniciando salvamento da inspeção...');
+    
+    // Validação dos campos obrigatórios
+    const areaName = document.getElementById('areaName').value.trim();
+    const inspectionDate = document.getElementById('inspectionDate').value;
+    const deadlineDate = document.getElementById('deadlineDate').value;
+    
+    if (!areaName) {
+        showToast('Por favor, preencha o nome da área', 'error');
+        return;
+    }
+    
+    if (!inspectionDate) {
+        showToast('Por favor, selecione a data da inspeção', 'error');
+        return;
+    }
+    
+    if (!deadlineDate) {
+        showToast('Por favor, defina o prazo para conclusão', 'error');
+        return;
+    }
+    
+    if (!selectedRiskLevel) {
+        showToast('Por favor, selecione um nível de risco geral', 'error');
+        return;
+    }
+
+    if (photos.length === 0) {
+        showToast('Por favor, adicione pelo menos uma foto', 'error');
+        return;
+    }
+    
+    // Verifica se há foto da área
+    const areaPhotoGallery = document.getElementById('areaPhotoGallery');
+    const areaPhoto = areaPhotoGallery.querySelector('img') ? 
+        areaPhotoGallery.querySelector('img').src : null;
+        
+    // Coleta os dados do checklist
+    const finalChecklistData = collectChecklistData();
+    console.log('Dados finais do checklist coletados:', finalChecklistData);
+    
+    // Verifica se estamos editando ou criando uma nova inspeção
+    if (currentEditingInspectionId) {
+        // Atualiza inspeção existente
+        updateInspection(currentEditingInspectionId);
+    } else {
+        // Cria nova inspeção
+        const inspection = {
+            id: Date.now(),
+            areaName: areaName,
+            areaPhoto: areaPhoto,
+            date: inspectionDate,
+            deadlineDate: deadlineDate,
+            location: document.getElementById('location').value,
+            riskLevel: selectedRiskLevel,
+            observations: document.getElementById('observations').value,
+            photos: photos,
+            checklistData: finalChecklistData,
+            status: calculateInspectionStatus(photos),
+            completionPercentage: calculateCompletionPercentage(photos),
+            timestamp: new Date().toISOString()
+        };
+        
+        console.log('Nova inspeção criada:', inspection);
+        
+        // Adiciona a inspeção ao início da lista
+        inspections.unshift(inspection);
+        
+        // Salva no localStorage
+        if (saveInspections()) {
+            // Exibe mensagem de sucesso
+            showToast('Inspeção salva com sucesso!', 'success');
             
-            // Verifica se há foto da área
-            const areaPhotoGallery = document.getElementById('areaPhotoGallery');
-            const areaPhoto = areaPhotoGallery.querySelector('img') ? 
-                areaPhotoGallery.querySelector('img').src : null;
-                
-            // Coleta os dados do checklist
-            const finalChecklistData = collectChecklistData();
-            console.log('Dados finais do checklist coletados:', finalChecklistData);
+            // Limpa o formulário
+            resetForm();
             
-            // Verifica se estamos editando ou criando uma nova inspeção
-            if (currentEditingInspectionId) {
-                // Atualiza inspeção existente
-                updateInspection(currentEditingInspectionId);
-            } else {
-                // Cria nova inspeção
-                const inspection = {
-                    id: Date.now(),
-                    areaName: areaName,
-                    areaPhoto: areaPhoto,
-                    date: inspectionDate,
-                    deadlineDate: deadlineDate,
-                    location: document.getElementById('location').value,
-                    riskLevel: selectedRiskLevel,
-                    observations: document.getElementById('observations').value,
-                    photos: photos,
-                    checklistData: finalChecklistData,
-                    status: calculateInspectionStatus(photos),
-                    completionPercentage: calculateCompletionPercentage(photos),
-                    timestamp: new Date().toISOString()
-                };
-                
-                console.log('Nova inspeção criada:', inspection);
-                
-                // Adiciona a inspeção ao início da lista
-                inspections.unshift(inspection);
-                
-                // Salva no localStorage
-                if (saveInspections()) {
-                    // Exibe mensagem de sucesso
-                    showToast('Inspeção salva com sucesso!', 'success');
-                    
-                    // Limpa o formulário
-                    resetForm();
-                    
-                    // Atualiza a lista de inspeções
-                    renderInspections();
-                    updateStats();
-                    
-                    // Força sincronização imediata
-                    localStorage.setItem('inspections_last_update', new Date().toISOString());
-                    
-                    // Adiciona animação de sucesso
-                    document.querySelector('.history-container').classList.add('success-animation');
-                    setTimeout(() => {
-                        document.querySelector('.history-container').classList.remove('success-animation');
-                    }, 500);
-                }
-            }
+            // Atualiza a lista de inspeções
+            renderInspections();
+            updateStats();
+            
+            // Força sincronização imediata
+            localStorage.setItem('inspections_last_update', new Date().toISOString());
+            
+            // Adiciona animação de sucesso
+            document.querySelector('.history-container').classList.add('success-animation');
+            setTimeout(() => {
+                document.querySelector('.history-container').classList.remove('success-animation');
+            }, 500);
         }
-
+    }
+}
         function calculateInspectionStatus(photos) {
             if (!photos || photos.length === 0) return 'pending';
             
@@ -3179,6 +3324,7 @@
                 btn.classList.remove('active');
             });
             document.querySelector(`.risk-btn.${level}`).classList.add('active');
+            saveFormState();
         }
 
         function getLocation() {
@@ -3195,6 +3341,7 @@
                         btn.innerHTML = '📍 Obter Localização';
                         btn.disabled = false;
                         showToast('Localização obtida com sucesso!', 'success');
+                        saveFormState();
                     },
                     function(error) {
                         btn.innerHTML = '📍 Obter Localização';
@@ -3253,134 +3400,143 @@
             document.querySelector('.modal.active').remove();
         }
 
-        function handlePhotoSelection(e) {
-            const files = e.target.files;
-            if (files && files.length > 0) {
-                let photosAdded = 0;
-                
-                Array.from(files).forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        const photo = {
-                            id: Date.now() + Math.random(),
-                            src: event.target.result,
-                            riskLevel: null,
-                            description: '',
-                            deadlineDate: null,
-                            resolved: false,
-                            resolutionText: '',
-                            resolutionPhotos: [],
-                            annotations: []
-                        };
-                        photos.push(photo);
-                        photosAdded++;
-                        
-                        if (photosAdded === files.length) {
-                            renderPhotoGallery();
-                            showToast(`${photosAdded} fotos adicionadas com sucesso!`, 'success');
-                        }
-                    };
-                    reader.readAsDataURL(file);
-                });
-            }
-        }
+       function handlePhotoSelection(e) {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+        let photosAdded = 0;
         
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const photo = {
+                    id: Date.now() + Math.random(),
+                    src: event.target.result,
+                    riskLevel: null,
+                    description: '',
+                    deadlineDate: null,
+                    resolved: false,
+                    resolutionText: '',
+                    resolutionPhotos: [],
+                    annotations: []
+                };
+                photos.push(photo);
+                photosAdded++;
+                
+                if (photosAdded === files.length) {
+                    renderPhotoGallery();
+                    showToast(`${photosAdded} fotos adicionadas com sucesso!`, 'success');
+                    // Salva o estado para que as fotos não se percam
+                    saveFormState();
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+}
         function closePhotoSourceModal() {
             document.getElementById('photoSourceModal').classList.remove('active');
         }
         
-        function addAreaPhoto() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.capture = 'environment';
-            input.multiple = true;
+       function addAreaPhoto() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.multiple = true;
+    
+    input.onchange = function(e) {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            let galleryHTML = '';
             
-            input.onchange = function(e) {
-                const files = e.target.files;
-                if (files && files.length > 0) {
-                    let galleryHTML = '';
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    galleryHTML += `
+                        <div class="photo-item">
+                            <img src="${event.target.result}" alt="Foto da Área">
+                            <div class="photo-actions">
+                                <button class="photo-action-btn" onclick="deleteAreaPhoto(event, this)">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+                    `;
                     
-                    Array.from(files).forEach(file => {
-                        const reader = new FileReader();
-                        reader.onload = function(event) {
-                            galleryHTML += `
-                                <div class="photo-item">
-                                    <img src="${event.target.result}" alt="Foto da Área">
-                                    <div class="photo-actions">
-                                        <button class="photo-action-btn" onclick="deleteAreaPhoto(event, this)">
-                                            🗑️
-                                        </button>
-                                    </div>
-                                </div>
-                            `;
-                            
-                            if (galleryHTML.split('<div class="photo-item">').length - 1 === files.length) {
-                                document.getElementById('areaPhotoGallery').innerHTML = galleryHTML + `
-                                    <div class="add-photo-btn" onclick="addAreaPhoto()">
-                                        <span>📷</span>
-                                        <small>Adicionar mais fotos</small>
-                                    </div>
-                                `;
-                            }
-                        };
-                        reader.readAsDataURL(file);
-                    });
-                }
-            };
-            input.click();
+                    // Quando todas as fotos forem lidas, atualiza o HTML e salva o estado
+                    if (galleryHTML.split('<div class="photo-item">').length - 1 === files.length) {
+                        document.getElementById('areaPhotoGallery').innerHTML = galleryHTML + `
+                            <div class="add-photo-btn" onclick="addAreaPhoto()">
+                                <span>📷</span>
+                                <small>Adicionar mais fotos</small>
+                            </div>
+                        `;
+                        // Salva o estado para que a foto não se perca
+                        saveFormState();
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
         }
-        
+    };
+    input.click();
+}
         function deleteAreaPhoto(event, element) {
             event.stopPropagation();
             const photoItem = element.closest('.photo-item');
             photoItem.remove();
+            saveFormState();
         }
         
-        function renderPhotoGallery() {
-            const gallery = document.getElementById('photoGallery');
-            gallery.innerHTML = photos.map((photo, index) => `
-                <div class="photo-item">
-                    <img src="${photo.src}" alt="Foto ${index + 1}" onclick="viewPhoto(${index})">
-                    ${photo.riskLevel ? `
-                        <span class="photo-risk-badge ${photo.riskLevel}">
-                            ${getRiskLabel(photo.riskLevel)}
-                        </span>
-                    ` : ''}
-                    ${photo.resolved ? `
-                        <span class="photo-risk-badge" style="background: var(--success); left: 5px; right: auto;">
-                            ✅ Resolvido
-                        </span>
-                    ` : ''}
-                    <div class="photo-actions">
-                        <button class="photo-action-btn" onclick="editPhoto(event, ${index})">
-                            ✏️ Editar
-                        </button>
-                        <button class="photo-action-btn" onclick="setPhotoRiskLevel(event, ${index})">
-                            ⚠️ Risco
-                        </button>
-                        <button class="photo-action-btn" onclick="resolvePhoto(event, ${index})">
-                            🔧 Resolver
-                        </button>
-                        <button class="photo-action-btn" onclick="deletePhoto(event, ${index})">
-                            🗑️
-                        </button>
-                    </div>
-                </div>
-            `).join('') + `
-                <div class="add-photo-btn" onclick="showPhotoSourceOptions()">
-                    <span>📷</span>
-                    <small>Adicionar Foto</small>
-                </div>
-            `;
-        }
-
-        function editPhoto(event, index) {
-            event.stopPropagation();
-            currentEditingPhoto = photos[index];
-            currentPhotoIndex = index;
-            openPhotoEditor();
-        }
+    function renderPhotoGallery() {
+    const gallery = document.getElementById('photoGallery');
+    
+    gallery.innerHTML = photos.map((photo, index) => `
+        <div class="photo-item">
+            <img src="${photo.src}" alt="Foto ${index + 1}" onclick="viewPhoto(${index})">
+            ${photo.riskLevel ? `
+                <span class="photo-risk-badge ${photo.riskLevel}">
+                    ${getRiskLabel(photo.riskLevel)}
+                </span>
+            ` : ''}
+            ${photo.resolved ? `
+                <span class="photo-risk-badge" style="background: var(--success); left: 5px; right: auto;">
+                    ✅ Resolvido
+                </span>
+            ` : ''}
+            <div class="photo-actions">
+                <button type="button" class="photo-action-btn" onclick="editPhoto(event, ${index})">
+                    ✏️ Editar
+                </button>
+                <button type="button" class="photo-action-btn" onclick="setPhotoRiskLevel(event, ${index})">
+                    ⚠️ Risco
+                </button>
+                <button type="button" class="photo-action-btn" onclick="resolvePhoto(event, ${index})">
+                    🔧 Resolver
+                </button>
+                <button type="button" class="photo-action-btn" onclick="deletePhoto(event, ${index})">
+                    🗑️
+                </button>
+            </div>
+        </div>
+    `).join('') + `
+        <div class="add-photo-btn" onclick="showPhotoSourceOptions()">
+            <span>📷</span>
+            <small>Adicionar Foto</small>
+        </div>
+    `;
+}
+    function editPhoto(event, index) {
+    console.log("FUNÇÃO editPhoto() CHAMADA!"); // Linha de depuração
+    event.stopPropagation();
+    
+    // A linha 'currentEditingInspectionId = id;' foi removida porque 'id' não existe aqui.
+    // O ID da inspeção já está na variável global 'currentEditingInspectionId'.
+    
+    currentEditingPhoto = photos[index];
+    currentPhotoIndex = index;
+    openPhotoEditor();
+}
 
         function openPhotoEditor() {
             const modal = document.getElementById('photoEditorModal');
@@ -3599,6 +3755,7 @@
             
             renderPhotoGallery();
             closePhotoEditor();
+            saveFormState();
             showToast('Foto editada com sucesso!', 'success');
         }
         
@@ -3606,14 +3763,15 @@
             document.getElementById('photoEditorModal').classList.remove('active');
         }
 
-        function deletePhoto(event, index) {
-            event.stopPropagation();
-            if (confirm('Deseja excluir esta foto?')) {
-                photos.splice(index, 1);
-                renderPhotoGallery();
-                showToast('Foto excluída', 'success');
-            }
-        }
+       function deletePhoto(event, index) {
+    event.stopPropagation();
+    if (confirm('Deseja excluir esta foto?')) {
+        // *** IMPORTANTE: Modifica APENAS a variável 'photos' em memória ***
+        photos.splice(index, 1);
+        renderPhotoGallery();
+        showToast('Foto excluída', 'success'); // Mensagem de sucesso, mas sem salvar a inspeção
+    }
+}
         
         function toggleDeadlineField() {
             const deadlineField = document.getElementById('photoDeadline');
@@ -3623,28 +3781,27 @@
             }
         }
 
-        function setPhotoRiskLevel(event, index) {
-            event.stopPropagation();
-            currentPhotoIndex = index;
-            currentPhotoRisk = photos[index].riskLevel;
-            document.getElementById('photoDescription').value = photos[index].description || '';
-            
-            if (photos[index].deadlineDate) {
-                document.getElementById('hasPhotoDeadline').checked = true;
-                document.getElementById('photoDeadline').style.display = 'block';
-                document.getElementById('photoDeadline').valueAsDate = new Date(photos[index].deadlineDate);
-            }
-            
-            document.querySelectorAll('#photoRiskModal .risk-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            if (photos[index].riskLevel) {
-                document.querySelector(`#photoRiskModal .risk-btn.${photos[index].riskLevel}`).classList.add('active');
-            }
-            
-            openPhotoRiskModal();
-        }
-
+     function setPhotoRiskLevel(event, index) {
+    event.stopPropagation();
+    currentPhotoIndex = index;
+    currentPhotoRisk = photos[index].riskLevel;
+    document.getElementById('photoDescription').value = photos[index].description || '';
+    
+    if (photos[index].deadlineDate) {
+        document.getElementById('hasPhotoDeadline').checked = true;
+        document.getElementById('photoDeadline').style.display = 'block';
+        document.getElementById('photoDeadline').valueAsDate = new Date(photos[index].deadlineDate);
+    }
+    
+    document.querySelectorAll('#photoRiskModal .risk-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    if (photos[index].riskLevel) {
+        document.querySelector(`#photoRiskModal .risk-btn.${photos[index].riskLevel}`).classList.add('active');
+    }
+    
+    openPhotoRiskModal();
+}
         function openPhotoRiskModal() {
             document.getElementById('photoRiskModal').classList.add('active');
         }
@@ -3662,107 +3819,113 @@
         }
         
         function savePhotoRisk() {
-            if (!currentPhotoRisk) {
-                showToast('Selecione um nível de risco', 'error');
-                return;
-            }
+    if (!currentPhotoRisk) {
+        showToast('Selecione um nível de risco', 'error');
+        return;
+    }
+    
+    // *** IMPORTANTE: Atualiza APENAS a variável 'photos' em memória ***
+    photos[currentPhotoIndex].riskLevel = currentPhotoRisk;
+    photos[currentPhotoIndex].description = document.getElementById('photoDescription').value;
+    photos[currentPhotoIndex].deadlineDate = document.getElementById('hasPhotoDeadline').checked ? 
+        document.getElementById('photoDeadline').value : null;
+        
+    renderPhotoGallery();
+    closePhotoRiskModal();
+    showToast('Risco da foto definido!', 'success'); // Mensagem de sucesso, mas sem salvar a inspeção
+}
+      function resolvePhoto(event, index) {
+    console.log("FUNÇÃO resolvePhoto() CHAMADA!"); // Linha de depuração
+    event.stopPropagation();
+    currentPhotoIndex = index;
+    currentPhotoId = photos[index].id;
+    
+    // CRÍTICO: Garante que o ID da inspeção atual esteja correto
+    if (currentEditingInspectionId) {
+        currentInspectionId = currentEditingInspectionId;
+    }
+    
+    openPhotoResolutionModal();
+}
+       function openPhotoResolutionModal() {
+    const modal = document.getElementById('photoResolutionModal');
+    const modalBody = document.getElementById('resolutionModalBody');
+    
+    // *** IMPORTANTE: Pega a foto da variável 'photos' em memória ***
+    const photo = photos[currentPhotoIndex];
+    
+    modalBody.innerHTML = `
+        <div class="form-group">
+            <label>Foto</label>
+            <img src="${photo.src}" style="max-width: 100%; border-radius: 8px;">
+        </div>
+        ${photo.riskLevel ? `
+            <div class="form-group">
+                <label>Nível de Risco</label>
+                <span class="risk-badge ${photo.riskLevel}">
+                    ${getRiskLabel(photo.riskLevel)}
+                </span>
+            </div>
+        ` : ''}
+        ${photo.deadlineDate ? `
+            <div class="form-group">
+                <label>Data Limite para Resolução</label>
+                <p>${formatDate(photo.deadlineDate)}</p>
+            </div>
+        ` : ''}
+        ${photo.description ? `
+            <div class="form-group">
+                <label>Descrição</label>
+                <p>${photo.description}</p>
+            </div>
+        ` : ''}
+        
+        <div class="resolution-section">
+            <div class="resolution-header">
+                <h4>Resolução</h4>
+                <span class="resolution-status ${photo.resolved ? 'resolved' : 'pending'}">
+                    ${photo.resolved ? 'Resolvido' : 'Pendente'}
+                </span>
+            </div>
             
-            photos[currentPhotoIndex].riskLevel = currentPhotoRisk;
-            photos[currentPhotoIndex].description = document.getElementById('photoDescription').value;
-            photos[currentPhotoIndex].deadlineDate = document.getElementById('hasPhotoDeadline').checked ? 
-                document.getElementById('photoDeadline').value : null;
-                
-            renderPhotoGallery();
-            closePhotoRiskModal();
-            showToast('Risco da foto definido com sucesso!', 'success');
-        }
-
-        function resolvePhoto(event, index) {
-            event.stopPropagation();
-            currentPhotoIndex = index;
-            currentPhotoId = photos[index].id;
-            openPhotoResolutionModal();
-        }
-
-        function openPhotoResolutionModal() {
-            const modal = document.getElementById('photoResolutionModal');
-            const modalBody = document.getElementById('resolutionModalBody');
-            
-            const photo = photos[currentPhotoIndex];
-            
-            modalBody.innerHTML = `
+            <div class="resolution-form ${photo.resolved ? '' : 'active'}">
                 <div class="form-group">
-                    <label>Foto</label>
-                    <img src="${photo.src}" style="max-width: 100%; border-radius: 8px;">
+                    <label for="resolutionText">Descrição da Resolução</label>
+                    <textarea id="resolutionText" placeholder="Descreva como esta questão foi resolvida...">${photo.resolutionText || ''}</textarea>
                 </div>
-                ${photo.riskLevel ? `
-                    <div class="form-group">
-                        <label>Nível de Risco</label>
-                        <span class="risk-badge ${photo.riskLevel}">
-                            ${getRiskLabel(photo.riskLevel)}
-                        </span>
-                    </div>
-                ` : ''}
-                ${photo.deadlineDate ? `
-                    <div class="form-group">
-                        <label>Data Limite para Resolução</label>
-                        <p>${formatDate(photo.deadlineDate)}</p>
-                    </div>
-                ` : ''}
-                ${photo.description ? `
-                    <div class="form-group">
-                        <label>Descrição</label>
-                        <p>${photo.description}</p>
-                    </div>
-                ` : ''}
                 
-                <div class="resolution-section">
-                    <div class="resolution-header">
-                        <h4>Resolução</h4>
-                        <span class="resolution-status ${photo.resolved ? 'resolved' : 'pending'}">
-                            ${photo.resolved ? 'Resolvido' : 'Pendente'}
-                        </span>
-                    </div>
-                    
-                    <div class="resolution-form ${photo.resolved ? '' : 'active'}">
-                        <div class="form-group">
-                            <label for="resolutionText">Descrição da Resolução</label>
-                            <textarea id="resolutionText" placeholder="Descreva como esta questão foi resolvida...">${photo.resolutionText || ''}</textarea>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Fotos da Resolução</label>
-                            <div class="resolution-photos" id="resolutionPhotos">
-                                ${photo.resolutionPhotos ? photo.resolutionPhotos.map((resPhoto, index) => `
-                                    <div class="resolution-photo">
-                                        <img src="${resPhoto}" alt="Foto de resolução ${index + 1}">
-                                        <button class="delete-btn" style="position: absolute; top: 5px; right: 5px; opacity: 1;" onclick="deleteResolutionPhoto(${index})">×</button>
-                                    </div>
-                                `).join('') : ''}
-                                <div class="add-photo-btn" onclick="addResolutionPhoto()" style="aspect-ratio: 1; height: 120px;">
-                                    <span>📷</span>
-                                    <small>Adicionar Foto</small>
-                                </div>
+                <div class="form-group">
+                    <label>Fotos da Resolução</label>
+                    <div class="resolution-photos" id="resolutionPhotos">
+                        ${photo.resolutionPhotos ? photo.resolutionPhotos.map((resPhoto, index) => `
+                            <div class="resolution-photo">
+                                <img src="${resPhoto}" alt="Foto de resolução ${index + 1}">
+                                <button class="delete-btn" style="position: absolute; top: 5px; right: 5px; opacity: 1;" onclick="deleteResolutionPhoto(${index})">×</button>
                             </div>
-                        </div>
-                        
-                        <div class="btn-group">
-                            ${photo.resolved ? 
-                                `<button class="btn btn-secondary" onclick="markAsUnresolved()">
-                                    🔙 Marcar como Não Resolvido
-                                </button>` : 
-                                `<button class="btn btn-primary" onclick="markAsResolved()">
-                                    ✅ Marcar como Resolvido
-                                </button>`
-                            }
+                        `).join('') : ''}
+                        <div class="add-photo-btn" onclick="addResolutionPhoto()" style="aspect-ratio: 1; height: 120px;">
+                            <span>📷</span>
+                            <small>Adicionar Foto</small>
                         </div>
                     </div>
                 </div>
-            `;
-            
-            modal.classList.add('active');
-        }
-
+                
+                <div class="btn-group">
+                    ${photo.resolved ? 
+                        `<button class="btn btn-secondary" onclick="markAsUnresolved()">
+                            🔙 Marcar como Não Resolvido
+                        </button>` : 
+                        `<button class="btn btn-primary" onclick="markAsResolved()">
+                            ✅ Marcar como Resolvido
+                        </button>`
+                    }
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modal.classList.add('active');
+}
         function closePhotoResolutionModal() {
             document.getElementById('photoResolutionModal').classList.remove('active');
         }
@@ -3781,6 +3944,7 @@
                         }
                         photos[currentPhotoIndex].resolutionPhotos.push(event.target.result);
                         openPhotoResolutionModal();
+                        saveFormState();
                         showToast('Foto de resolução adicionada', 'success');
                     };
                     reader.readAsDataURL(file);
@@ -3793,61 +3957,46 @@
             if (confirm('Deseja excluir esta foto de resolução?')) {
                 photos[currentPhotoIndex].resolutionPhotos.splice(index, 1);
                 openPhotoResolutionModal();
+                saveFormState();
                 showToast('Foto de resolução excluída', 'success');
             }
         }
 
         function markAsResolved() {
-            const resolutionText = document.getElementById('resolutionText').value;
-            
-            if (!resolutionText) {
-                showToast('Adicione uma descrição para a resolução', 'error');
-                return;
-            }
-            
-            if (!photos[currentPhotoIndex].resolutionPhotos || photos[currentPhotoIndex].resolutionPhotos.length === 0) {
-                showToast('Adicione pelo menos uma foto da resolução', 'error');
-                return;
-            }
-            
-            photos[currentPhotoIndex].resolved = true;
-            photos[currentPhotoIndex].resolutionText = resolutionText;
-            photos[currentPhotoIndex].resolutionDate = new Date().toISOString();
-            
-            const inspectionIndex = inspections.findIndex(i => i.id == currentInspectionId);
-            if (inspectionIndex !== -1) {
-                inspections[inspectionIndex].status = calculateInspectionStatus(inspections[inspectionIndex].photos);
-                inspections[inspectionIndex].completionPercentage = calculateCompletionPercentage(inspections[inspectionIndex].photos);
-                localStorage.setItem('inspections', JSON.stringify(inspections));
-            }
-            
-            renderPhotoGallery();
-            renderInspections();
-            closePhotoResolutionModal();
-            showToast('Foto marcada como resolvida!', 'success');
-        }
-
-        function markAsUnresolved() {
-            if (confirm('Tem certeza que deseja marcar esta foto como não resolvida?')) {
-                photos[currentPhotoIndex].resolved = false;
-                photos[currentPhotoIndex].resolutionText = '';
-                photos[currentPhotoIndex].resolutionPhotos = [];
-                photos[currentPhotoIndex].resolutionDate = null;
-                
-                const inspectionIndex = inspections.findIndex(i => i.id == currentInspectionId);
-                if (inspectionIndex !== -1) {
-                    inspections[inspectionIndex].status = calculateInspectionStatus(inspections[inspectionIndex].photos);
-                    inspections[inspectionIndex].completionPercentage = calculateCompletionPercentage(inspections[inspectionIndex].photos);
-                    localStorage.setItem('inspections', JSON.stringify(inspections));
-                }
-                
-                renderPhotoGallery();
-                renderInspections();
-                closePhotoResolutionModal();
-                showToast('Foto marcada como não resolvida', 'success');
-            }
-        }
-
+    const resolutionText = document.getElementById('resolutionText').value;
+    
+    if (!resolutionText) {
+        showToast('Adicione uma descrição para a resolução', 'error');
+        return;
+    }
+    
+    if (!photos[currentPhotoIndex].resolutionPhotos || photos[currentPhotoIndex].resolutionPhotos.length === 0) {
+        showToast('Adicione pelo menos uma foto da resolução', 'error');
+        return;
+    }
+    
+    // *** IMPORTANTE: Atualiza APENAS a variável 'photos' em memória ***
+    photos[currentPhotoIndex].resolved = true;
+    photos[currentPhotoIndex].resolutionText = resolutionText;
+    photos[currentPhotoIndex].resolutionDate = new Date().toISOString();
+    
+    renderPhotoGallery();
+    closePhotoResolutionModal();
+    showToast('Foto marcada como resolvida!', 'success'); // Mensagem de sucesso, mas sem salvar a inspeção
+}
+    function markAsUnresolved() {
+    if (confirm('Tem certeza que deseja marcar esta foto como não resolvida?')) {
+        // *** IMPORTANTE: Atualiza APENAS a variável 'photos' em memória ***
+        photos[currentPhotoIndex].resolved = false;
+        photos[currentPhotoIndex].resolutionText = '';
+        photos[currentPhotoIndex].resolutionPhotos = [];
+        photos[currentPhotoIndex].resolutionDate = null;
+        
+        renderPhotoGallery();
+        closePhotoResolutionModal();
+        showToast('Foto marcada como não resolvida', 'success'); // Mensagem de sucesso, mas sem salvar a inspeção
+    }
+}
         function viewPhoto(index) {
             const photo = photos[index];
             const modal = document.getElementById('inspectionModal');
@@ -3909,47 +4058,46 @@
             modal.classList.add('active');
         }
         
-        function resetForm() {
-            document.getElementById('inspectionForm').reset();
-            const today = new Date();
-            document.getElementById('inspectionDate').valueAsDate = today;
-            const deadline = new Date(today);
-            deadline.setDate(deadline.getDate() + 30);
-            document.getElementById('deadlineDate').valueAsDate = deadline;
-            selectedRiskLevel = null;
-            photos = [];
-            checklistMemory = {};
-            currentEditingInspectionId = null;
-            
-            document.querySelectorAll('.risk-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
-                input.checked = false;
-            });
-            
-            document.getElementById('areaPhotoGallery').innerHTML = `
-                <div class="add-photo-btn" onclick="addAreaPhoto()">
-                    <span>📷</span>
-                    <small>Adicionar Foto da Área</small>
-                </div>
-            `;
-            
-            renderPhotoGallery();
-            updateChecklistSummary();
-            
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.textContent = '💾 Salvar Inspeção';
-            submitBtn.onclick = null;
-            
-            document.getElementById('formTitle').textContent = '📝 Nova Inspeção';
-            
-            // Limpa estado do formulário
-            localStorage.removeItem('formState');
-            localStorage.removeItem('checklistMemory');
-        }
-        
+     function resetForm() {
+    document.getElementById('inspectionForm').reset();
+    const today = new Date();
+    document.getElementById('inspectionDate').valueAsDate = today;
+    const deadline = new Date(today);
+    deadline.setDate(deadline.getDate() + 30);
+    document.getElementById('deadlineDate').valueAsDate = deadline;
+    selectedRiskLevel = null;
+    photos = [];
+    checklistMemory = {};
+    currentEditingInspectionId = null;
+    
+    document.querySelectorAll('.risk-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
+        input.checked = false;
+    });
+    
+    // Reseta a galeria de fotos da área
+    document.getElementById('areaPhotoGallery').innerHTML = `
+        <div class="add-photo-btn" onclick="addAreaPhoto()">
+            <span>📷</span>
+            <small>Adicionar Foto da Área</small>
+        </div>
+    `;
+    
+    renderPhotoGallery();
+    updateChecklistSummary();
+    
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.textContent = '💾 Salvar Inspeção';
+    submitBtn.onclick = null;
+    
+    document.getElementById('formTitle').textContent = '📝 Nova Inspeção';
+    
+    // Limpa o estado do formulário do localStorage
+    localStorage.removeItem('formState');
+}
         function filterInspections(filter) {
             currentFilter = filter;
             
@@ -4173,8 +4321,7 @@
                     'ilu2': 'As luminárias estão completas e sem lâmpadas queimadas?',
                     'ilu3': 'A iluminação ambiente atende a necessidade, ou é insuficiente?',
                     'beb1': 'Os bebedouros estão em boas condições de funcionamento, com água potável e filtro não saturado?',
-                    'beb2': 'Existem bebedouros em número suficiente para atender os colaboradores? (01 para cada 50 trabalhadores)',
-                    'beb3': 'Existem copos descartáveis ou dispositivos adequados para os empregados beberem água?',
+                    'beb2': 'Existem bebedouros em número suficiente para atender os colaboradores? (01 para cada 50 trabalhadores)',                    'beb3': 'Existem copos descartáveis ou dispositivos adequados para os empregados beberem água?',
                     'ban1': 'Os lavatórios, mictórios e sanitários estão em boas condições de uso?',
                     'ban2': 'Existem banheiros e sanitários suficientes para atender cada colaborador? (01 para cada 20 trabalhadores)',
                     'ban3': 'Os chuveiros e armários estão em boas condições de uso?',
@@ -4408,105 +4555,106 @@
             document.getElementById('inspectionModal').classList.remove('active');
         }
         
-        function editInspection(id) {
-            const inspection = inspections.find(i => i.id === id);
-            if (!inspection) return;
-            
-            document.getElementById('areaName').value = inspection.areaName;
-            document.getElementById('inspectionDate').value = inspection.date;
-            document.getElementById('deadlineDate').value = inspection.deadlineDate;
-            document.getElementById('location').value = inspection.location || '';
-            document.getElementById('observations').value = inspection.observations || '';
-            
-            setRiskLevel(inspection.riskLevel);
-            
-            if (inspection.areaPhoto) {
-                document.getElementById('areaPhotoGallery').innerHTML = `
-                    <div class="photo-item">
-                        <img src="${inspection.areaPhoto}" alt="Foto da Área">
-                        <div class="photo-actions">
-                            <button class="photo-action-btn" onclick="deleteAreaPhoto(event, this)">
-                                🗑️
-                            </button>
-                        </div>
-                    </div>
-                    <div class="add-photo-btn" onclick="addAreaPhoto()">
-                        <span>📷</span>
-                        <small>Adicionar mais fotos</small>
-                    </div>
-                `;
-            }
-            
-            photos = inspection.photos || [];
-            renderPhotoGallery();
-            
-            if (inspection.checklistData) {
-                checklistMemory = inspection.checklistData;
-                Object.keys(checklistMemory).forEach(key => {
-                    const input = document.querySelector(`input[name="${key}"][value="${checklistMemory[key]}"]`);
-                    if (input) {
-                        input.checked = true;
-                    }
-                });
-                updateChecklistSummary();
-            }
-            
-            currentEditingInspectionId = id;
-            
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.textContent = '💾 Atualizar Inspeção';
-            
-            document.getElementById('formTitle').textContent = '✏️ Editar Inspeção';
-            
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            
-            closeModal();
-        }
+     function editInspection(id) {
+    const inspection = inspections.find(i => i.id === id);
+    if (!inspection) return;
+    
+    // Define o ID da inspeção sendo editada
+    currentEditingInspectionId = id;
+    
+    // Preenche o formulário com os dados da inspeção
+    document.getElementById('areaName').value = inspection.areaName;
+    document.getElementById('inspectionDate').value = inspection.date;
+    document.getElementById('deadlineDate').value = inspection.deadlineDate;
+    document.getElementById('location').value = inspection.location || '';
+    document.getElementById('observations').value = inspection.observations || '';
+    
+    setRiskLevel(inspection.riskLevel);
+    
+    if (inspection.areaPhoto) {
+        document.getElementById('areaPhotoGallery').innerHTML = `
+            <div class="photo-item">
+                <img src="${inspection.areaPhoto}" alt="Foto da Área">
+                <div class="photo-actions">
+                    <button class="photo-action-btn" onclick="deleteAreaPhoto(event, this)">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+            <div class="add-photo-btn" onclick="addAreaPhoto()">
+                <span>📷</span>
+                <small>Adicionar mais fotos</small>
+            </div>
+        `;
+    }
+    
+    // *** IMPORTANTE: Cria uma cópia profunda das fotos para a edição ***
+    // Isso evita que as alterações afetem o original até que seja salvo
+    photos = JSON.parse(JSON.stringify(inspection.photos || []));
+    renderPhotoGallery();
+    
+    // *** IMPORTANTE: Cria uma cópia profunda do checklist para a edição ***
+    checklistMemory = JSON.parse(JSON.stringify(inspection.checklistData || {}));
+    
+    // Aplica o estado do checklist ao DOM
+    applyChecklistStateToDOM();
+    updateChecklistSummary();
+    
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.textContent = '💾 Atualizar Inspeção';
+    
+    document.getElementById('formTitle').textContent = '✏️ Editar Inspeção';
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    closeModal();
+}
 
-        function updateInspection(id) {
-            const inspectionIndex = inspections.findIndex(i => i.id === id);
-            if (inspectionIndex === -1) return;
-            
-            if (!selectedRiskLevel) {
-                showToast('Por favor, selecione um nível de risco geral', 'error');
-                return;
-            }
+      function updateInspection(id) {
+    console.log("FUNÇÃO UPDATEINSPECTION CHAMADA! ID:", id); // *** LINHA DE DEBUG ***
 
-            if (photos.length === 0) {
-                showToast('Por favor, adicione pelo menos uma foto', 'error');
-                return;
-            }
-            
-            const areaPhotoGallery = document.getElementById('areaPhotoGallery');
-            const areaPhoto = areaPhotoGallery.querySelector('img') ? 
-                areaPhotoGallery.querySelector('img').src : null;
-                
-            const finalChecklistData = collectChecklistData();
-            
-            inspections[inspectionIndex] = {
-                ...inspections[inspectionIndex],
-                areaName: document.getElementById('areaName').value,
-                areaPhoto: areaPhoto,
-                date: document.getElementById('inspectionDate').value,
-                deadlineDate: document.getElementById('deadlineDate').value,
-                location: document.getElementById('location').value,
-                riskLevel: selectedRiskLevel,
-                observations: document.getElementById('observations').value,
-                photos: photos,
-                checklistData: finalChecklistData,
-                status: calculateInspectionStatus(photos),
-                completionPercentage: calculateCompletionPercentage(photos),
-                timestamp: new Date().toISOString()
-            };
-            
-            if (saveInspections()) {
-                showToast('Inspeção atualizada com sucesso!', 'success');
-                resetForm();
-                renderInspections();
-                updateStats();
-            }
-        }
+    const inspectionIndex = inspections.findIndex(i => i.id === id);
+    if (inspectionIndex === -1) return;
+    
+    if (!selectedRiskLevel) {
+        showToast('Por favor, selecione um nível de risco geral', 'error');
+        return;
+    }
+
+    if (photos.length === 0) {
+        showToast('Por favor, adicione pelo menos uma foto', 'error');
+        return;
+    }
+    
+    const areaPhotoGallery = document.getElementById('areaPhotoGallery');
+    const areaPhoto = areaPhotoGallery.querySelector('img') ? 
+        areaPhotoGallery.querySelector('img').src : null;
         
+    const finalChecklistData = collectChecklistData();
+    
+    inspections[inspectionIndex] = {
+        ...inspections[inspectionIndex],
+        areaName: document.getElementById('areaName').value,
+        areaPhoto: areaPhoto,
+        date: document.getElementById('inspectionDate').value,
+        deadlineDate: document.getElementById('deadlineDate').value,
+        location: document.getElementById('location').value,
+        riskLevel: selectedRiskLevel,
+        observations: document.getElementById('observations').value,
+        photos: photos, // Salva as fotos editadas da memória
+        checklistData: finalChecklistData, // Salva o checklist editado da memória
+        status: calculateInspectionStatus(photos),
+        completionPercentage: calculateCompletionPercentage(photos),
+        timestamp: new Date().toISOString()
+    };
+    
+    if (saveInspections()) {
+        showToast('Inspeção atualizada com sucesso!', 'success');
+        resetForm();
+        renderInspections();
+        updateStats();
+    }
+}
         function deleteInspection(id) {
             if (confirm('Tem certeza que deseja excluir esta inspeção? Esta ação não pode ser desfeita.')) {
                 inspections = inspections.filter(i => i.id !== id);
@@ -4624,7 +4772,7 @@
                             text: { 
                                 text: 'ZAMINE', 
                                 options: { 
-                                     x: 10.5, y: 0.2, w: 1.5,                                     h: 0.5, 
+                                    x: 10.5, y: 0.2, w: 1.5, h: 0.5, 
                                     align: 'right', color: '000000', fontSize: 24, bold: true 
                                 } 
                             } 
