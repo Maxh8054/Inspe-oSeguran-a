@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema Avançado de Inspeção de Área - Versão em Rede</title>
+    <title>Sistema Avançado de Inspeção de Área</title>
     <style>
-        /* Estilos existentes (mantidos) */
+        /* Estilos existentes */
         * {
             margin: 0;
             padding: 0;
@@ -533,6 +533,10 @@
 
         .toast.error {
             background: var(--danger);
+        }
+
+        .toast.warning {
+            background: var(--warning);
         }
 
         .location-input {
@@ -1257,8 +1261,8 @@
             margin: 0;
         }
 
-        /* Estilos para indicador de sincronização */
-        .sync-indicator {
+        /* Estilos para o indicador de sincronização */
+        .sync-status {
             display: flex;
             align-items: center;
             gap: 5px;
@@ -1267,96 +1271,19 @@
             margin-top: 5px;
         }
 
-        .sync-status {
+        .sync-indicator {
             width: 8px;
             height: 8px;
             border-radius: 50%;
+            background: var(--warning);
+        }
+
+        .sync-indicator.synced {
             background: var(--success);
         }
 
-        .sync-status.syncing {
-            background: var(--warning);
-            animation: pulse 1s infinite;
-        }
-
-        .sync-status.error {
+        .sync-indicator.error {
             background: var(--danger);
-        }
-
-        /* Estilos para configuração de rede */
-        .network-config {
-            background: var(--gray-light);
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        .network-config.active {
-            display: block;
-        }
-
-        .config-title {
-            font-weight: 600;
-            margin-bottom: 10px;
-            color: var(--gray-dark);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .config-close {
-            background: none;
-            border: none;
-            font-size: 18px;
-            cursor: pointer;
-            color: var(--gray-medium);
-        }
-
-        .config-close:hover {
-            color: var(--black);
-        }
-
-        .config-form {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        @media (max-width: 768px) {
-            .config-form {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .config-field {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .config-field label {
-            margin-bottom: 5px;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .config-field input {
-            padding: 8px;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-        }
-
-        .config-buttons {
-            grid-column: span 2;
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-        }
-
-        @media (max-width: 768px) {
-            .config-buttons {
-                grid-column: span 1;
-            }
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.11.0/dist/pptxgen.bundle.js"></script>
@@ -1366,63 +1293,31 @@
         <div class="header-content">
             <h1>
                 <div class="logo">📋</div>
-                Sistema Avançado de Inspeção - Versão em Rede
+                Sistema Avançado de Inspeção
             </h1>
             <button class="menu-toggle" onclick="toggleMenu()">
                 ☰ Menu
             </button>
-            <div class="nav-menu" id="navMenu">
-                <div class="file-input-wrapper">
-                    <button class="btn btn-info" onclick="document.getElementById('importJson').click()">
-                        📂 Importar JSON
-                    </button>
-                    <input type="file" id="importJson" accept=".json" onchange="importJSON(event)">
-                </div>
-                <button class="btn btn-info" onclick="exportJSON()">
-                    💾 Exportar JSON
-                </button>
-                <button class="btn btn-primary" onclick="exportSelectedPPT()">
-                    📽️ Exportar PPT
-                </button>
-                <button class="btn btn-secondary" onclick="toggleNetworkConfig()">
-                    ⚙️ Configuração de Rede
-                </button>
-                <button class="btn btn-info" onclick="syncData()">
-                    🔄 Sincronizar Agora
-                </button>
-            </div>
+           <div class="nav-menu" id="navMenu">
+    <div class="file-input-wrapper">
+        <!-- O botão agora tem o comando para abrir o arquivo -->
+        <button class="btn btn-info" onclick="document.getElementById('importJson').click()">
+            📂 Importar JSON
+        </button>
+        <input type="file" id="importJson" accept=".json" onchange="importJSON(event)">
+    </div>
+    <button class="btn btn-info" onclick="exportJSON()">
+        💾 Exportar JSON
+    </button>
+    <button class="btn btn-primary" onclick="exportSelectedPPT()">
+        📽️ Exportar PPT
+    </button>
+    <button class="btn btn-info" onclick="syncWithCloud()" id="syncBtn">
+        🔄 Sincronizar
+    </button>
+</div>
         </div>
     </header>
-
-    <!-- Configuração de Rede -->
-    <div class="network-config" id="networkConfig">
-        <div class="config-title">
-            Configuração de Rede
-            <button class="config-close" onclick="toggleNetworkConfig()">&times;</button>
-        </div>
-        <div class="config-form">
-            <div class="config-field">
-                <label for="serverUrl">URL do Servidor</label>
-                <input type="text" id="serverUrl" placeholder="http://servidor.local/api" value="">
-            </div>
-            <div class="config-field">
-                <label for="syncInterval">Intervalo de Sincronização (segundos)</label>
-                <input type="number" id="syncInterval" min="10" value="30">
-            </div>
-            <div class="config-field">
-                <label for="apiKey">Chave de API (opcional)</label>
-                <input type="password" id="apiKey" placeholder="Chave de autenticação">
-            </div>
-            <div class="config-field">
-                <label for="dataPath">Caminho do Arquivo de Dados</label>
-                <input type="text" id="dataPath" placeholder="/data/inspections.json" value="/data/inspections.json">
-            </div>
-            <div class="config-buttons">
-                <button class="btn btn-secondary" onclick="testConnection()">Testar Conexão</button>
-                <button class="btn btn-primary" onclick="saveNetworkConfig()">Salvar Configuração</button>
-            </div>
-        </div>
-    </div>
 
     <div class="container">
         <div class="stats">
@@ -1443,9 +1338,13 @@
                 <div class="stat-label">Inspeções Concluídas</div>
             </div>
         </div>
-        <div class="sync-indicator">
-            <div class="sync-status" id="syncStatus"></div>
-            <span id="syncMessage">Sincronização: Desativada</span>
+        <div class="backup-status">
+            <div class="backup-indicator"></div>
+            <span id="lastBackup">Backup automático: Ativado</span>
+        </div>
+        <div class="sync-status">
+            <div class="sync-indicator" id="syncIndicator"></div>
+            <span id="syncStatus">Aguardando sincronização...</span>
         </div>
 
         <div class="main-content">
@@ -1860,7 +1759,9 @@
                             
                             <div class="checklist-question">
                                 <div class="question-text">As correias, polias e transmissores de força possuem proteção adequada?</div>
-                                <div class="answer-options">
+                                
+
+</div>
                                     <div class="answer-option">
                                         <input type="radio" id="maq2_sim" name="maq2" value="sim">
                                         <label for="maq2_sim">Sim</label>
@@ -2460,7 +2361,8 @@
                                 <div class="question-text">As exigências mínimas da NR 10 estão sendo cumpridas (equipamentos / instalações)?</div>
                                 <div class="answer-options">
                                     <div class="answer-option">
-                                                                                <label for="ele2_sim">Sim</label>
+                                        <input type="radio" id="ele2_sim" name="ele2" value="sim">
+                                        <label for="ele2_sim">Sim</label>
                                     </div>
                                     <div class="answer-option">
                                         <input type="radio" id="ele2_nao" name="ele2" value="nao">
@@ -2737,7 +2639,7 @@
                         🔤 Texto
                     </button>
                     <input type="color" class="color-picker" id="colorPicker" value="#ff0000">
-                    <button class="editor-tool" onclick="clearAnnotations()" title="Desfazer última anotação">
+                                       <button class="editor-tool" onclick="clearAnnotations()" title="Desfazer última anotação">
                         ↩️ Desfazer
                     </button>
                     <button class="editor-tool" onclick="saveEditedPhoto()" style="background: var(--success);">
@@ -2814,419 +2716,11 @@
 
     <script>
         // =================================================================
-        // SISTEMA DE SINCRONIZAÇÃO EM REDE
+        // CONFIGURAÇÃO DO JSONBin.io - SUBSTITUA PELA SUA CHAVE
         // =================================================================
+        const JSONBIN_API_KEY = '$2a$10$o5i1DRfhztW.rgmT1BFLZuVzveAZdbRWPZlwxneH5GQ8eoaQ/qN9W'; // ⚠️ SUBSTITUA PELA SUA CHAVE REAL
+        const JSONBIN_URL = 'https://api.jsonbin.io/v3/b';
         
-        // Configuração de rede
-        let networkConfig = {
-            serverUrl: '',
-            syncInterval: 30,
-            apiKey: '',
-            dataPath: '/data/inspections.json',
-            lastSync: null,
-            syncEnabled: false,
-            syncTimer: null
-        };
-
-        // Carregar configuração de rede do localStorage
-        function loadNetworkConfig() {
-            const saved = localStorage.getItem('networkConfig');
-            if (saved) {
-                networkConfig = { ...networkConfig, ...JSON.parse(saved) };
-                updateNetworkConfigUI();
-            }
-        }
-// Adicione esta função para forçar sincronização
-function forceSync() {
-    syncData().then(() => {
-        console.log('Sincronização forçada concluída');
-        renderInspections();
-        updateStats();
-    });
-}
-
-// Modifique a função saveInspections
-async function saveInspections() {
-    try {
-        const data = {
-            inspections: inspections,
-            lastModified: new Date().toISOString(),
-            version: '1.0',
-            forceUpdate: true // Flag para forçar atualização
-        };
-
-        const response = await fetch(`${API_BASE_URL}/inspections`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-User': getCurrentUser() || 'anonymous',
-                'Cache-Control': 'no-cache'
-            },
-            body: JSON.stringify(data)
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        
-        if (result.success) {
-            // Limpar cache local
-            localStorage.removeItem('inspections');
-            localStorage.removeItem('lastSync');
-            
-            // Forçar sincronização em todos os clientes
-            setTimeout(() => {
-                if (typeof broadcastChannel !== 'undefined') {
-                    broadcastChannel.postMessage({
-                        type: 'UPDATE',
-                        timestamp: new Date().toISOString()
-                    });
-                }
-            }, 1000);
-            
-            updateSyncStatus('success', `Salvo em ${new Date().toLocaleTimeString('pt-BR')}`);
-            return true;
-        } else {
-            throw new Error(result.error || 'Erro ao salvar');
-        }
-        
-    } catch (error) {
-        console.error('Erro ao salvar:', error);
-        updateSyncStatus('error', 'Falha ao salvar');
-        showToast(`Erro: ${error.message}`, 'error');
-        return false;
-    }
-}
-// Adicione no início do seu script
-let broadcastChannel;
-let lastSyncTimestamp = null;
-
-// Inicializar canal de comunicação
-function initializeBroadcastChannel() {
-    try {
-        broadcastChannel = new BroadcastChannel('inspections_sync');
-        
-        broadcastChannel.onmessage = (event) => {
-            if (event.data.type === 'UPDATE') {
-                console.log('Recebida atualização de outro cliente');
-                forceSync();
-            }
-        };
-    } catch (error) {
-        console.log('Broadcast Channel não suportado');
-    }
-}
-// api/inspections/route.js
-export default async function handler(req, res) {
-  // Configurar headers anti-cache
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-User');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  try {
-    const { method } = req;
-    const key = 'inspections';
-
-    switch (method) {
-      case 'GET':
-        // Adicionar timestamp para evitar cache
-        const timestamp = Date.now();
-        const inspections = await kv.get(key);
-        
-        return res.json({
-          inspections: inspections ? JSON.parse(inspections) : [],
-          lastModified: new Date().toISOString(),
-          timestamp: timestamp,
-          version: '1.0',
-          cacheBust: Math.random() // Força atualização
-        });
-
-      case 'POST':
-        const data = req.body;
-        
-        if (!data || !data.inspections) {
-          return res.status(400).json({ error: 'Dados inválidos' });
-        }
-
-        // Adicionar timestamp único
-        const enrichedData = {
-          ...data,
-          lastModified: new Date().toISOString(),
-          serverVersion: '1.0',
-          modifiedBy: req.headers['x-user'] || 'anonymous',
-          updateId: uuidv4() // ID único para cada atualização
-        };
-
-        // Salvar no KV Store
-        await kv.set(key, JSON.stringify(enrichedData.inspections));
-        
-        // Criar notificação de atualização
-        const notification = {
-          type: 'UPDATE',
-          timestamp: new Date().toISOString(),
-          updateId: enrichedData.updateId,
-          modifiedBy: enrichedData.modifiedBy
-        };
-        
-        await kv.set('last_update', JSON.stringify(notification));
-
-        return res.json({
-          success: true,
-          timestamp: new Date().toISOString(),
-          inspections_count: enrichedData.inspections.length,
-          updateId: enrichedData.updateId
-        });
-
-      default:
-        return res.status(405).json({ error: 'Método não permitido' });
-    }
-  } catch (error) {
-    console.error('Erro na API:', error);
-    return res.status(500).json({ 
-      error: 'Erro interno do servidor',
-      details: error.message 
-    });
-  }
-}
-// Sistema de verificação de atualizações
-let lastKnownUpdate = null;
-
-async function checkForUpdates() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/inspections`, {
-            method: 'GET',
-            headers: {
-                'Cache-Control': 'no-cache',
-                'X-Last-Known-Update': lastKnownUpdate || ''
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        
-        // Verificar se há atualizações
-        if (data.lastModified !== lastKnownUpdate) {
-            console.log('Detectada atualização no servidor');
-            lastKnownUpdate = data.lastModified;
-            
-            // Atualizar dados locais
-            inspections = data.inspections || [];
-            renderInspections();
-            updateStats();
-            
-            showToast('Dados atualizados!', 'success');
-        }
-        
-    } catch (error) {
-        console.error('Erro ao verificar atualizações:', error);
-    }
-}
-
-// Verificar atualizações periodicamente
-setInterval(checkForUpdates, 15000); // A cada 15 segundos
-// Modifique a função de inicialização
-document.addEventListener('DOMContentLoaded', function() {
-    initializeBroadcastChannel();
-    initializeApp();
-    
-    // Forçar sincronização a cada 30 segundos
-    setInterval(() => {
-        forceSync();
-    }, 30000);
-    
-    // Forçar sincronização quando a página ganha foco
-    window.addEventListener('focus', () => {
-        forceSync();
-    });
-    
-    // Forçar sincronização quando a página fica visível
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-            forceSync();
-        }
-    });
-});
-        // Salvar configuração de rede
-        function saveNetworkConfigToStorage() {
-            localStorage.setItem('networkConfig', JSON.stringify(networkConfig));
-        }
-
-        // Atualizar UI com configuração atual
-        function updateNetworkConfigUI() {
-            document.getElementById('serverUrl').value = networkConfig.serverUrl;
-            document.getElementById('syncInterval').value = networkConfig.syncInterval;
-            document.getElementById('apiKey').value = networkConfig.apiKey;
-            document.getElementById('dataPath').value = networkConfig.dataPath;
-        }
-
-        // Toggle painel de configuração
-        function toggleNetworkConfig() {
-            const configPanel = document.getElementById('networkConfig');
-            configPanel.classList.toggle('active');
-        }
-
-        // Salvar configuração de rede
-        function saveNetworkConfig() {
-            networkConfig.serverUrl = document.getElementById('serverUrl').value;
-            networkConfig.syncInterval = parseInt(document.getElementById('syncInterval').value);
-            networkConfig.apiKey = document.getElementById('apiKey').value;
-            networkConfig.dataPath = document.getElementById('dataPath').value;
-            
-            saveNetworkConfigToStorage();
-            
-            if (networkConfig.serverUrl) {
-                networkConfig.syncEnabled = true;
-                startAutoSync();
-                showToast('Configuração de rede salva e sincronização ativada!', 'success');
-            } else {
-                networkConfig.syncEnabled = false;
-                stopAutoSync();
-                showToast('Configuração salva. Sincronização desativada (URL do servidor não definida).', 'info');
-            }
-            
-            toggleNetworkConfig();
-        }
-
-        // Testar conexão com o servidor
-        async function testConnection() {
-            const serverUrl = document.getElementById('serverUrl').value;
-            if (!serverUrl) {
-                showToast('Por favor, insira a URL do servidor', 'error');
-                return;
-            }
-
-            try {
-                updateSyncStatus('syncing', 'Testando conexão...');
-                
-                const response = await fetch(`${serverUrl}/test`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': document.getElementById('apiKey').value || ''
-                    }
-                });
-
-                if (response.ok) {
-                    updateSyncStatus('success', 'Conexão bem-sucedida!');
-                    showToast('Conexão com o servidor estabelecida com sucesso!', 'success');
-                } else {
-                    throw new Error(`Erro ${response.status}: ${response.statusText}`);
-                }
-            } catch (error) {
-                updateSyncStatus('error', 'Falha na conexão');
-                showToast(`Falha ao conectar: ${error.message}`, 'error');
-            }
-        }
-
-        // Iniciar sincronização automática
-        function startAutoSync() {
-            if (networkConfig.syncTimer) {
-                clearInterval(networkConfig.syncTimer);
-            }
-            
-            if (networkConfig.syncEnabled && networkConfig.serverUrl) {
-                networkConfig.syncTimer = setInterval(() => {
-                    syncData();
-                }, networkConfig.syncInterval * 1000);
-                
-                updateSyncStatus('success', `Sincronização automática ativa (${networkConfig.syncInterval}s)`);
-            }
-        }
-
-        // Parar sincronização automática
-        function stopAutoSync() {
-            if (networkConfig.syncTimer) {
-                clearInterval(networkConfig.syncTimer);
-                networkConfig.syncTimer = null;
-            }
-            updateSyncStatus('', 'Sincronização: Desativada');
-        }
-
-        // Atualizar status de sincronização na UI
-        function updateSyncStatus(status, message) {
-            const statusElement = document.getElementById('syncStatus');
-            const messageElement = document.getElementById('syncMessage');
-            
-            statusElement.className = 'sync-status';
-            if (status) {
-                statusElement.classList.add(status);
-            }
-            messageElement.textContent = message;
-        }
-
-        // Sincronizar dados com o servidor
-        async function syncData() {
-            if (!networkConfig.syncEnabled || !networkConfig.serverUrl) {
-                return;
-            }
-
-            try {
-                updateSyncStatus('syncing', 'Sincronizando...');
-                
-                // Obter dados locais
-                const localData = {
-                    inspections: inspections,
-                    lastModified: new Date().toISOString()
-                };
-
-                // Enviar para o servidor
-                const response = await fetch(`${networkConfig.serverUrl}${networkConfig.dataPath}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': networkConfig.apiKey || ''
-                    },
-                    body: JSON.stringify(localData)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Erro ${response.status}: ${response.statusText}`);
-                }
-
-                // Obter dados atualizados do servidor
-                const serverResponse = await fetch(`${networkConfig.serverUrl}${networkConfig.dataPath}`, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': networkConfig.apiKey || ''
-                    }
-                });
-
-                if (serverResponse.ok) {
-                    const serverData = await serverResponse.json();
-                    
-                    // Mesclar dados (priorizar dados mais recentes)
-                    if (serverData.inspections && Array.isArray(serverData.inspections)) {
-                        // Implementar lógica de mesclagem aqui
-                        // Por enquanto, vamos substituir completamente
-                        inspections = serverData.inspections;
-                        renderInspections();
-                        updateStats();
-                    }
-                }
-
-                networkConfig.lastSync = new Date().toISOString();
-                updateSyncStatus('success', `Sincronizado em ${new Date().toLocaleTimeString('pt-BR')}`);
-                
-            } catch (error) {
-                console.error('Erro na sincronização:', error);
-                updateSyncStatus('error', 'Falha na sincronização');
-                showToast(`Erro na sincronização: ${error.message}`, 'error');
-            }
-        }
-
         // =================================================================
         // BLOCO DE CÓDIGO CORRIGIDO - EDITOR DE FOTOS
         // =================================================================
@@ -3269,6 +2763,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.img = new Image();
                     
                     this.img.onload = () => {
+                        // A imagem foi carregada
                         console.log('Imagem carregada. Dimensões:', this.img.width, 'x', this.img.height);
                         
                         // 1. Redefine o tamanho do canvas para o tamanho da imagem
@@ -3506,11 +3001,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     saveFormState();
                 }
                 
-                // Sincroniza com a rede se estiver ativo
-                if (networkConfig.syncEnabled) {
-                    syncData();
-                }
-                
                 showToast('Foto editada com sucesso!', 'success');
             } catch (error) {
                 console.error('Erro ao salvar a foto editada:', error);
@@ -3543,6 +3033,172 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // =================================================================
+        // FUNÇÕES DE SINCRONIZAÇÃO COM NUVEM (JSONBin.io)
+        // =================================================================
+
+        // Função para salvar dados no JSONBin.io
+        async function saveToCloud(data) {
+            try {
+                const binId = localStorage.getItem('jsonbin_id');
+                let url = JSONBIN_URL;
+                let method = 'POST';
+                
+                // Se já tivermos um ID, atualizamos o bin existente
+                if (binId) {
+                    url = `${JSONBIN_URL}/${binId}`;
+                    method = 'PUT';
+                }
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': JSONBIN_API_KEY,
+                        'X-Bin-Versioning': 'false'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Erro ao salvar na nuvem: ${response.status} ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                // Se for uma nova criação, salvamos o ID para uso futuro
+                if (!binId && result.metadata) {
+                    localStorage.setItem('jsonbin_id', result.metadata.id);
+                    updateSyncStatus('success', 'Sincronizado com a nuvem');
+                } else {
+                    updateSyncStatus('success', 'Dados sincronizados');
+                }
+                
+                console.log('Dados salvos na nuvem com sucesso!');
+                return true;
+            } catch (error) {
+                console.error('Erro ao salvar na nuvem:', error);
+                updateSyncStatus('error', 'Falha na sincronização');
+                return false;
+            }
+        }
+
+        // Função para carregar dados do JSONBin.io
+        async function loadFromCloud() {
+            try {
+                const binId = localStorage.getItem('jsonbin_id');
+                if (!binId) {
+                    console.log('Nenhum ID de bin encontrado. Usando apenas dados locais.');
+                    updateSyncStatus('warning', 'Aguardando primeira sincronização');
+                    return false;
+                }
+                
+                updateSyncStatus('warning', 'Carregando dados da nuvem...');
+                
+                const response = await fetch(`${JSONBIN_URL}/${binId}/latest`, {
+                    method: 'GET',
+                    headers: {
+                        'X-Master-Key': JSONBIN_API_KEY
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Erro ao carregar da nuvem: ${response.status} ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                const cloudData = result.record;
+                
+                // Compara timestamp para decidir qual dados usar (local ou nuvem)
+                const localData = localStorage.getItem('inspections');
+                const localTimestamp = localStorage.getItem('inspections_last_update');
+                const cloudTimestamp = cloudData.lastUpdate;
+                
+                if (!localData || !localTimestamp || new Date(cloudTimestamp) > new Date(localTimestamp)) {
+                    // Usa dados da nuvem
+                    inspections = cloudData.inspections || [];
+                    localStorage.setItem('inspections', JSON.stringify(inspections));
+                    localStorage.setItem('inspections_last_update', cloudTimestamp);
+                    console.log('Dados carregados da nuvem (mais recentes)');
+                    updateSyncStatus('success', 'Dados atualizados da nuvem');
+                    return true;
+                } else {
+                    console.log('Dados locais são mais recentes que os da nuvem');
+                    updateSyncStatus('success', 'Dados locais são mais recentes');
+                    return false;
+                }
+            } catch (error) {
+                console.error('Erro ao carregar da nuvem:', error);
+                updateSyncStatus('error', 'Falha ao carregar da nuvem');
+                return false;
+            }
+        }
+
+        // Função para sincronização manual
+        async function syncWithCloud() {
+            const syncBtn = document.getElementById('syncBtn');
+            const originalText = syncBtn.innerHTML;
+            
+            syncBtn.innerHTML = '<span class="loading"></span> Sincronizando...';
+            syncBtn.disabled = true;
+            
+            try {
+                updateSyncStatus('warning', 'Sincronizando...');
+                
+                // Primeiro, tenta carregar da nuvem
+                const loadedFromCloud = await loadFromCloud();
+                if (loadedFromCloud) {
+                    renderInspections();
+                    updateStats();
+                }
+                
+                // Depois, salva os dados atuais na nuvem
+                const success = await saveToCloud({
+                    inspections: inspections,
+                    lastUpdate: new Date().toISOString()
+                });
+                
+                syncBtn.innerHTML = originalText;
+                syncBtn.disabled = false;
+                
+                if (success) {
+                    showToast('Sincronização concluída com sucesso!', 'success');
+                } else {
+                    showToast('Falha na sincronização. Tente novamente.', 'error');
+                }
+            } catch (error) {
+                console.error('Erro na sincronização:', error);
+                syncBtn.innerHTML = originalText;
+                syncBtn.disabled = false;
+                showToast('Erro na sincronização. Verifique sua conexão.', 'error');
+                updateSyncStatus('error', 'Erro de conexão');
+            }
+        }
+
+        // Função para atualizar o status de sincronização na UI
+        function updateSyncStatus(status, message) {
+            const indicator = document.getElementById('syncIndicator');
+            const statusText = document.getElementById('syncStatus');
+            
+            // Remove todas as classes de status
+            indicator.classList.remove('synced', 'error');
+            
+            // Adiciona a classe correspondente ao status
+            switch(status) {
+                case 'success':
+                    indicator.classList.add('synced');
+                    break;
+                case 'error':
+                    indicator.classList.add('error');
+                    break;
+                default:
+                    // 'warning' ou outros status usam a cor padrão (amarelo/laranja)
+                    break;
+            }
+            
+            statusText.textContent = message;
+        }
+
+        // =================================================================
         // RESTO DO CÓDIGO JAVASCRIPT
         // =================================================================
 
@@ -3571,9 +3227,71 @@ document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
         });
 
+        /**
+         * Comprime uma imagem antes de adicioná-la ao sistema.
+         * @param {File} file - O arquivo de imagem original.
+         * @param {number} maxWidth - Largura máxima da imagem comprimida.
+         * @param {number} quality - Qualidade da compressão/**
+         */
+
+         function compressImage(file, maxWidth = 800,
+
+quality = 0.5) { // Reduzi maxWidth e quality
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // Cria um canvas para redimensionar a imagem
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+
+                        // Calcula a nova altura mantendo a proporção
+                        let { width, height } = img;
+                        if (width > maxWidth) {
+                            height = (maxWidth / width) * height;
+                            width = maxWidth;
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+
+                        // Desenha a imagem redimensionada no canvas
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // Converte o canvas para um Blob com a qualidade desejada
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                    // Retorna o Base64 da imagem comprimida
+                                    resolve(reader.result);
+                                };
+                                reader.readAsDataURL(blob);
+                            } else {
+                                reject(new Error('Falha ao comprimir a imagem.'));
+                            }
+                        }, 'image/jpeg', quality); // Formato JPEG para melhor compressão
+                    };
+                    img.onerror = () => reject(new Error('Falha ao carregar a imagem.'));
+                    img.src = event.target.result;
+                };
+                reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
+                reader.readAsDataURL(file);
+            });
+        }
+        
         function initializeApp() {
-            loadNetworkConfig(); // Carregar configuração de rede primeiro
             loadDataFromStorage();
+            
+            // Tenta carregar da nuvem ao inicializar
+            loadFromCloud().then(success => {
+                if (success) {
+                    renderInspections();
+                    updateStats();
+                    showToast('Dados sincronizados com a nuvem!', 'success');
+                }
+            });
             
             try {
                 const formState = localStorage.getItem('formState');
@@ -3635,151 +3353,7 @@ document.addEventListener('DOMContentLoaded', function() {
             applyChecklistStateToDOM();
             updateChecklistSummary();
             startAutoBackup();
-            
-            // Iniciar sincronização automática se configurado
-            if (networkConfig.syncEnabled) {
-                startAutoSync();
-            }
         }
-
-        // Modificar função saveInspections para incluir sincronização
-        function saveInspections() {
-            try {
-                const inspectionsData = JSON.stringify(inspections);
-                localStorage.setItem('inspections', inspectionsData);
-                
-                // Limpa o estado do formulário após um salvamento bem-sucedido
-                localStorage.removeItem('formState'); 
-                localStorage.setItem('inspections_last_save', new Date().toISOString());
-                
-                console.log('Inspeções salvas com sucesso:', inspections.length);
-                
-                // Sincronizar com a rede se estiver ativo
-                if (networkConfig.syncEnabled) {
-                    syncData();
-                }
-                
-                return true;
-            } catch (error) {
-                console.error('Erro ao salvar inspeções:', error);
-                
-                // Verifica se o erro é de estouro de cota do localStorage
-                if (error.name === 'QuotaExceededError' || error.code === 22) {
-                    showToast('Erro: Espaço de armazenamento cheio. Tente excluir algumas inspeções com muitas fotos ou limpe os dados do navegador.', 'error');
-                } else {
-                    showToast('Erro ao salvar inspeções. Tente novamente.', 'error');
-                }
-                return false;
-            }
-        }
-
-        // Modificar função saveInspection para incluir sincronização
-        function saveInspection(e) {
-            console.log('Iniciando salvamento da inspeção...');
-            
-            if (currentEditingInspectionId) {
-                const modalIsOpen = document.querySelector('.modal.active');
-                if (modalIsOpen) {
-                    console.warn('Tentativa de salvar inspeção enquanto um modal está aberto. Operação cancelada para evitar perda de dados.');
-                    showToast('Por favor, feche a janela de edição de foto antes de salvar a inspeção.', 'error');
-                    if (e) e.preventDefault();
-                    return;
-                }
-            }
-
-            const areaName = document.getElementById('areaName').value.trim();
-            const inspectionDate = document.getElementById('inspectionDate').value;
-            const deadlineDate = document.getElementById('deadlineDate').value;
-            
-            if (!areaName) {
-                showToast('Por favor, preencha o nome da área', 'error');
-                if (e) e.preventDefault();
-                return;
-            }
-            
-            if (!inspectionDate) {
-                showToast('Por favor, selecione a data da inspeção', 'error');
-                if (e) e.preventDefault();
-                return;
-            }
-            
-            if (!deadlineDate) {
-                showToast('Por favor, defina o prazo para conclusão', 'error');
-                if (e) e.preventDefault();
-                return;
-            }
-            
-            if (!selectedRiskLevel) {
-                showToast('Por favor, selecione um nível de risco geral', 'error');
-                if (e) e.preventDefault();
-                return;
-            }
-
-            if (photos.length === 0) {
-                showToast('Por favor, adicione pelo menos uma foto', 'error');
-                if (e) e.preventDefault();
-                return;
-            }
-            
-            const areaPhotoGallery = document.getElementById('areaPhotoGallery');
-            const areaPhoto = areaPhotoGallery.querySelector('img') ? 
-                areaPhotoGallery.querySelector('img').src : null;
-                
-            const finalChecklistData = collectChecklistData();
-            console.log('Dados finais do checklist coletados:', finalChecklistData);
-            
-            if (currentEditingInspectionId) {
-                updateInspection(currentEditingInspectionId);
-            } else {
-                const inspection = {
-                    id: Date.now(),
-                    areaName: areaName,
-                    areaPhoto: areaPhoto,
-                    date: inspectionDate,
-                    deadlineDate: deadlineDate,
-                    location: document.getElementById('location').value,
-                    riskLevel: selectedRiskLevel,
-                    observations: document.getElementById('observations').value,
-                    photos: photos,
-                    checklistData: finalChecklistData,
-                    status: calculateInspectionStatus(photos),
-                    completionPercentage: calculateCompletionPercentage(photos),
-                    timestamp: new Date().toISOString(),
-                    modifiedBy: getCurrentUser(), // Adicionar usuário atual
-                    syncStatus: 'pending' // Status de sincronização
-                };
-                
-                console.log('Nova inspeção criada:', inspection);
-                
-                inspections.unshift(inspection);
-                
-                if (saveInspections()) {
-                    showToast('Inspeção salva com sucesso!', 'success');
-                    resetForm();
-                    renderInspections();
-                    updateStats();
-                    localStorage.setItem('inspections_last_update', new Date().toISOString());
-                    document.querySelector('.history-container').classList.add('success-animation');
-                    setTimeout(() => {
-                        document.querySelector('.history-container').classList.remove('success-animation');
-                    }, 500);
-                }
-            }
-        }
-
-        // Função para obter usuário atual (pode ser personalizada)
-        function getCurrentUser() {
-            // Em um ambiente real, isso poderia vir de um sistema de autenticação
-            return localStorage.getItem('currentUser') || 'Usuário Anônimo';
-        }
-
-        // Adicionar função para definir usuário atual
-        function setCurrentUser(username) {
-            localStorage.setItem('currentUser', username);
-        }
-
-        // Continuar com o resto das funções existentes...
-        // [Todas as outras funções do seu código original continuam aqui]
         
         function setupEventListeners() {
             document.getElementById('inspectionForm').addEventListener('submit', function(e) {
@@ -3867,8 +3441,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
 
                 const areaPhotoGallery = document.getElementById('areaPhotoGallery');
-                const areaPhotoImg = areaPhotoGallery.querySelector('img');
-                const areaPhoto = areaPhotoImg ? areaPhotoImg.src : null;
+                const areaPhoto = areaPhotoGallery.querySelector('img') ? 
+                    areaPhotoGallery.querySelector('img').src : null;
 
                 const formState = {
                     areaName: document.getElementById('areaName').value,
@@ -4060,15 +3634,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (confirm(confirmMessage)) {
                         inspections = inspectionsToImport;
                         
+                        // Salva localmente e na nuvem
                         localStorage.setItem('inspections', JSON.stringify(inspections));
+                        saveToCloud({
+                            inspections: inspections,
+                            lastUpdate: new Date().toISOString()
+                        });
                         
                         renderInspections();
                         updateStats();
-                        
-                        // Sincronizar com a rede se estiver ativo
-                        if (networkConfig.syncEnabled) {
-                            syncData();
-                        }
                         
                         showToast(`${inspectionsToImport.length} inspeções importadas com sucesso!`, 'success');
                         
@@ -4091,9 +3665,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             reader.readAsText(file);
         }
-        
-        // Continuar com as outras funções...
-        // [O resto das funções do seu código original continuam aqui]
         
         function switchChecklistTab(tabId, tabElement) {
             event.preventDefault();
@@ -4177,6 +3748,126 @@ document.addEventListener('DOMContentLoaded', function() {
             return data;
         }
         
+       // Substitua a função saveInspections existente por esta
+        function saveInspections() {
+            try {
+                const inspectionsData = JSON.stringify(inspections);
+                localStorage.setItem('inspections', inspectionsData);
+                localStorage.setItem('inspections_last_save', new Date().toISOString());
+                localStorage.setItem('inspections_last_update', new Date().toISOString());
+                
+                // Tenta salvar na nuvem
+                saveToCloud({
+                    inspections: inspections,
+                    lastUpdate: new Date().toISOString()
+                });
+                
+                console.log('Inspeções salvas com sucesso:', inspections.length);
+                return true;
+            } catch (error) {
+                console.error('Erro ao salvar inspeções:', error);
+                
+                // Verifica se o erro é de estouro de cota do localStorage
+                if (error.name === 'QuotaExceededError' || error.code === 22) {
+                    showToast('Erro: Espaço de armazenamento cheio. Tente excluir algumas inspeções com muitas fotos ou limpe os dados do navegador.', 'error');
+                } else {
+                    showToast('Erro ao salvar inspeções. Tente novamente.', 'error');
+                }
+                return false;
+            }
+        }
+        
+        function saveInspection(e) {
+            console.log('Iniciando salvamento da inspeção...');
+            
+            if (currentEditingInspectionId) {
+                const modalIsOpen = document.querySelector('.modal.active');
+                if (modalIsOpen) {
+                    console.warn('Tentativa de salvar inspeção enquanto um modal está aberto. Operação cancelada para evitar perda de dados.');
+                    showToast('Por favor, feche a janela de edição de foto antes de salvar a inspeção.', 'error');
+                    if (e) e.preventDefault();
+                    return;
+                }
+            }
+
+            const areaName = document.getElementById('areaName').value.trim();
+            const inspectionDate = document.getElementById('inspectionDate').value;
+            const deadlineDate = document.getElementById('deadlineDate').value;
+            
+            if (!areaName) {
+                showToast('Por favor, preencha o nome da área', 'error');
+                if (e) e.preventDefault();
+                return;
+            }
+            
+            if (!inspectionDate) {
+                showToast('Por favor, selecione a data da inspeção', 'error');
+                if (e) e.preventDefault();
+                return;
+            }
+            
+            if (!deadlineDate) {
+                showToast('Por favor, defina o prazo para conclusão', 'error');
+                if (e) e.preventDefault();
+                return;
+            }
+            
+            if (!selectedRiskLevel) {
+                showToast('Por favor, selecione um nível de risco geral', 'error');
+                if (e) e.preventDefault();
+                return;
+            }
+
+            if (photos.length === 0) {
+                showToast('Por favor, adicione pelo menos uma foto', 'error');
+                if (e) e.preventDefault();
+                return;
+            }
+            
+            const areaPhotoGallery = document.getElementById('areaPhotoGallery');
+            const areaPhoto = areaPhotoGallery.querySelector('img') ? 
+                areaPhotoGallery.querySelector('img').src : null;
+                
+            const finalChecklistData = collectChecklistData();
+            console.log('Dados finais do checklist coletados:', finalChecklistData);
+            
+            if (currentEditingInspectionId) {
+                updateInspection(currentEditingInspectionId);
+            } else {
+                const inspection = {
+                    id: Date.now(),
+                    areaName: areaName,
+                    areaPhoto: areaPhoto,
+                    date: inspectionDate,
+                    deadlineDate: deadlineDate,
+                    location: document.getElementById('location').value,
+                    riskLevel: selectedRiskLevel,
+                    observations: document.getElementById('observations').value,
+                    photos: photos,
+                    checklistData: finalChecklistData,
+                    status: calculateInspectionStatus(photos),
+                    completionPercentage: calculateCompletionPercentage(photos),
+                    timestamp: new Date().toISOString()
+                };
+                
+                console.log('Nova inspeção criada:', inspection);
+                
+                inspections.unshift(inspection);
+                
+                if (saveInspections()) {
+                    showToast('Inspeção salva com sucesso!', 'success');
+                    resetForm();
+                    renderInspections();
+                    updateStats();
+                    localStorage.setItem('inspections_last_update', new Date().toISOString());
+                    document.querySelector('.history-container').classList.add('success-animation');
+                    setTimeout(() => {
+                        document.querySelector('.history-container').classList.remove('success-animation');
+                    }, 500);
+                }
+            }
+        }
+
         function calculateInspectionStatus(photos) {
             if (!photos || photos.length === 0) return 'pending';
             
@@ -4275,58 +3966,21 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelector('.modal.active').remove();
         }
 
-        function compressImage(file, maxWidth = 800, quality = 0.5) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-
-                        let { width, height } = img;
-                        if (width > maxWidth) {
-                            height = (maxWidth / width) * height;
-                            width = maxWidth;
-                        }
-                        
-                        canvas.width = width;
-                        canvas.height = height;
-
-                        ctx.drawImage(img, 0, 0, width, height);
-
-                        canvas.toBlob((blob) => {
-                            if (blob) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                    resolve(reader.result);
-                                };
-                                reader.readAsDataURL(blob);
-                            } else {
-                                reject(new Error('Falha ao comprimir a imagem.'));
-                            }
-                        }, 'image/jpeg', quality);
-                    };
-                    img.onerror = () => reject(new Error('Falha ao carregar a imagem.'));
-                    img.src = event.target.result;
-                };
-                reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
-                reader.readAsDataURL(file);
-            });
-        }
-
+       // Substitua a função handlePhotoSelection existente por esta
         async function handlePhotoSelection(e) {
             const files = e.target.files;
             if (files && files.length > 0) {
                 let photosAdded = 0;
                 
+                // Itera sobre os arquivos selecionados
                 for (const file of files) {
                     try {
+                        // Comprime a imagem antes de processar
                         const compressedImageSrc = await compressImage(file);
                         
                         const photo = {
                             id: Date.now() + Math.random(),
-                            src: compressedImageSrc,
+                            src: compressedImageSrc, // Usa a imagem comprimida
                             riskLevel: null,
                             description: '',
                             deadlineDate: null,
@@ -4351,11 +4005,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         }
-        
         function closePhotoSourceModal() {
             document.getElementById('photoSourceModal').classList.remove('active');
         }
         
+        // Substitua a função addAreaPhoto existente por esta
         async function addAreaPhoto() {
             const input = document.createElement('input');
             input.type = 'file';
@@ -4368,6 +4022,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (files && files.length > 0) {
                     let galleryHTML = '';
                     
+                    // Itera sobre os arquivos para comprimir e adicionar
                     for (const file of files) {
                         try {
                             const compressedImageSrc = await compressImage(file);
@@ -4387,6 +4042,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                     
+                    // Atualiza a galeria com as novas fotos
                     document.getElementById('areaPhotoGallery').innerHTML = galleryHTML + `
                         <div class="add-photo-btn" onclick="addAreaPhoto()">
                             <span>📷</span>
@@ -4398,7 +4054,6 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             input.click();
         }
-        
         function deleteAreaPhoto(event, element) {
             event.stopPropagation();
             const photoItem = element.closest('.photo-item');
@@ -4483,7 +4138,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             openPhotoRiskModal();
         }
-        
         function openPhotoRiskModal() {
             document.getElementById('photoRiskModal').classList.add('active');
         }
@@ -4532,7 +4186,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             openPhotoResolutionModal();
         }
-        
         function openPhotoResolutionModal() {
             const modal = document.getElementById('photoResolutionModal');
             const modalBody = document.getElementById('resolutionModalBody');
@@ -4611,7 +4264,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             modal.classList.add('active');
         }
-        
         function closePhotoResolutionModal() {
             document.getElementById('photoResolutionModal').classList.remove('active');
         }
@@ -4692,7 +4344,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 showToast('Foto marcada como não resolvida', 'success');
             }
         }
-        
         function viewPhoto(index) {
             const photo = photos[index];
             const modal = document.getElementById('inspectionModal');
@@ -4792,7 +4443,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             localStorage.removeItem('formState');
         }
-        
         function filterInspections(filter) {
             currentFilter = filter;
             
@@ -4872,12 +4522,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                             <span class="history-detail-label">Checklist:</span>
                                             <span class="history-detail-value">${checklistScore}% de conformidade</span>
                                         </div>
-                                        ${inspection.modifiedBy ? `
-                                            <div class="history-detail">
-                                                <span class="history-detail-label">Modificado por:</span>
-                                                <span class="history-detail-value">${inspection.modifiedBy}</span>
-                                            </div>
-                                        ` : ''}
                                     </div>
                                     <div class="history-progress">
                                         <div class="history-progress-fill" style="width: ${inspection.completionPercentage || 0}%"></div>
@@ -4963,12 +4607,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 const score = totalQuestions > 0 ? Math.round((yesAnswers / totalQuestions) * 100) : 0;
                 
                 const categoryNames = {
-                    'epi': 'EPIs', 'inc': 'Incêndio', 'iso': 'Isolamento', 'qui': 'Químicos',
-                    'maq': 'Máquinas', 'fer': 'Ferramentas', 'arm': 'Armazenamento',
-                    'uni': 'Uniformes', 'pis': 'Pisos', 'org': 'Organização',
-                    'esc': 'Escadas', 'ilu': 'Iluminação', 'beb': 'Bebedouros',
-                    'ban': 'Banheiros', 'inf': 'Inflamáveis', 'ele': 'Eletricidade',
-                    'escr': 'Escritório', 'ficha': 'Ficha EPI'
+                    'epi': 'EPIs', 'incendio': 'Incêndio', 'isolamento': 'Isolamento', 'quimicos': 'Químicos',
+                    'maquinas': 'Máquinas', 'ferramentas': 'Ferramentas', 'armazenamento': 'Armazenamento',
+                    'uniformes': 'Uniformes', 'pisos': 'Pisos', 'organizacao': 'Organização',
+                    'escadas': 'Escadas', 'iluminacao': 'Iluminação', 'bebedouros': 'Bebedouros',
+                    'banheiros': 'Banheiros', 'inflamaveis': 'Inflamáveis', 'eletricidade': 'Eletricidade',
+                    'escritorio': 'Escritório', 'fichaEPI': 'Ficha EPI'
                 };
                 
                 const questionTexts = {
@@ -5034,31 +4678,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     'ficha2': 'A ficha de controle de EPIs está em dia?'
                 };
                 
-                let checklistTableHTML = '<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">';
-                checklistTableHTML += '<tr style="background-color: #f2f2f2;"><th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Categoria</th><th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Pergunta</th><th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Resposta</th></tr>';
-                
-                Object.keys(inspection.checklistData).forEach(key => {
-                    const category = key.replace(/\d+$/, '');
-                    const categoryName = categoryNames[category] || category;
-                    const questionText = questionTexts[key] || key;
-                    const answerText = inspection.checklistData[key] === 'sim' ? '✅ Sim' : 
-                                     inspection.checklistData[key] === 'nao' ? '❌ Não' : 
-                                     '⚪ N/A';
-                    const answerColor = inspection.checklistData[key] === 'sim' ? '#28a745' : 
-                                      inspection.checklistData[key] === 'nao' ? '#dc3545' : 
-                                      '#6c757d';
-                    
-                    checklistTableHTML += `
-                        <tr>
-                            <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${categoryName}</td>
-                            <td style="border: 1px solid #ddd; padding: 8px;">${questionText}</td>
-                                                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; color: ${answerColor}; font-weight: bold;">${answerText}</td>
-                        </tr>
-                    `;
-                });
-                
-                checklistTableHTML += '</table>';
-                
                 checklistHTML = `
                     <div class="form-group">
                         <label>Resumo do Checklist de Segurança</label>
@@ -5085,7 +4704,28 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                         <div style="margin-top: 20px; overflow-x: auto;">
                             <h4 style="margin-bottom: 10px;">Detalhes do Checklist</h4>
-                            ${checklistTableHTML}
+                            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                                <tr style="background-color: #f2f2f2;"><th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Categoria</th><th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Pergunta</th><th style="border: 1px solid #ddd; padding: 8px; text-align: center;">Resposta</th></tr>
+                                ${Object.keys(inspection.checklistData).map(key => {
+                                    const category = key.replace(/\d+$/, '');
+                                    const categoryName = categoryNames[category] || category;
+                                    const questionText = questionTexts[key] || key;
+                                    const answerText = inspection.checklistData[key] === 'sim' ? '✅ Sim' : 
+                                                     inspection.checklistData[key] === 'nao' ? '❌ Não' : 
+                                                     '⚪ N/A';
+                                    const answerColor = inspection.checklistData[key] === 'sim' ? '#28a745' : 
+                                                      inspection.checklistData[key] === 'nao' ? '#dc3545' : 
+                                                      '#6c757d';
+                                    
+                                    return `
+                                        <tr>
+                                            <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${categoryName}</td>
+                                            <td style="border: 1px solid #ddd; padding: 8px;">${questionText}</td>
+                                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center; color: ${answerColor}; font-weight: bold;">${answerText}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </table>
                         </div>
                     </div>
                 `;
@@ -5129,12 +4769,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         <span>${inspection.photos ? inspection.photos.filter(p => p.resolved).length : 0} de ${inspection.photos ? inspection.photos.length : 0} fotos resolvidas</span>
                     </div>
                 </div>
-                ${inspection.modifiedBy ? `
-                    <div class="form-group">
-                        <label>Modificado por</label>
-                        <p>${inspection.modifiedBy}</p>
-                    </div>
-                ` : ''}
                 ${checklistHTML}
                 ${inspection.observations ? `
                     <div class="form-group">
@@ -5336,9 +4970,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 checklistData: finalChecklistData,
                 status: calculateInspectionStatus(photos),
                 completionPercentage: calculateCompletionPercentage(photos),
-                timestamp: new Date().toISOString(),
-                modifiedBy: getCurrentUser(),
-                syncStatus: 'pending'
+                timestamp: new Date().toISOString()
             };
             
             if (saveInspections()) {
@@ -5355,8 +4987,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 saveInspections();
                 renderInspections();
                 updateStats();
-                showToast('Inspeção excluída com sucesso!', 'success');
-            }
+                showToast('Inspeção excluída com sucesso!', 'success'); 
+
+}
         }
         
         function getRiskLabel(level) {
@@ -5401,6 +5034,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.style.background = type === 'error' ? 'var(--danger)' : 
+                                  type === 'warning' ? 'var(--warning)' :
                                   type === 'info' ? 'var(--info)' : 'var(--success)';
             toast.classList.add('show');
             
@@ -5527,7 +5161,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     { label: 'Data da Inspeção', icon: '📅', value: formatDate(firstInspection.date) },
                     { label: 'Nível de Risco Geral', icon: '⚠️', value: getRiskLabel(firstInspection.riskLevel), isRisk: true, riskLevel: firstInspection.riskLevel },
                     { label: 'Total de Fotos', icon: '📷', value: firstInspection.photos ? firstInspection.photos.length : 0 },
-                    { label: 'Inspetor', icon: '👤', value: firstInspection.modifiedBy || 'Não informado' },
+                    { label: 'Inspetor', icon: '👤', value: firstInspection.inspector || 'Não informado' },
                     { label: 'Resumo do Checklist de Segurança', icon: '⚙️', value: checklistSummaryText },
                 ];
 
@@ -5559,7 +5193,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         photoSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: '100%', fill: { color: 'FFFFFF' } });
                         photoSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.6, fill: { color: 'FF6600' } });
-                        photoSlide.addText('Fotos da Inspeção', { x: 0, y: 0.1, w: '100%', h: 0.4, fontSize: 10, bold: true, align: 'center', color: 'FFFFFF', fontFace: 'Arial' });
+                        photoSlide.addText('Fotos da Inspeção', { 
+                            x: 0, y: 0.1, w: '100%', h: 0.4, 
+                            fontSize: 10, bold: true, align: 'center', color: 'FFFFFF', fontFace: 'Arial' 
+                        });
 
                         let currentY = 0.8;
 
@@ -5904,7 +5541,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 showToast('Ocorreu um erro ao gerar o arquivo PPT. Verifique o console do navegador (F12) para mais detalhes.', 'error');
             }
         }
-        
         function populateChecklistForm(checklistData) {
             document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
                 input.checked = false;
@@ -5925,6 +5561,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     console.warn(`Campo do checklist não encontrado: name="${inputName}", value="${answerValue}"`);
                 }
+            }
+        }
+        // Adicione esta nova função ao seu arquivo JavaScript
+        function cleanupOldFormState() {
+            try {
+                const formState = localStorage.getItem('formState');
+                if (formState) {
+                    const state = JSON.parse(formState);
+                    const timeDiff = new Date() - new Date(state.timestamp);
+                    const hoursDiff = timeDiff / (1000 * 60 * 60);
+
+                    // Se o estado do formulário for mais antigo que 24 horas, remova-o
+                    if (hoursDiff > 24) {
+                        localStorage.removeItem('formState');
+                        console.log('Estado do formulário antigo removido pelo cleanup.');
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao limpar o estado antigo do formulário:', error);
             }
         }
     </script>
