@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema Avançado de Inspeção de Área</title>
+    <title>Sistema Avançado de Inspeção de Área - Versão em Rede</title>
     <style>
-        /* Estilos existentes */
+        /* Estilos existentes (mantidos) */
         * {
             margin: 0;
             padding: 0;
@@ -1256,6 +1256,108 @@
         .file-input-wrapper .btn {
             margin: 0;
         }
+
+        /* Estilos para indicador de sincronização */
+        .sync-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: var(--gray-medium);
+            margin-top: 5px;
+        }
+
+        .sync-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .sync-status.syncing {
+            background: var(--warning);
+            animation: pulse 1s infinite;
+        }
+
+        .sync-status.error {
+            background: var(--danger);
+        }
+
+        /* Estilos para configuração de rede */
+        .network-config {
+            background: var(--gray-light);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .network-config.active {
+            display: block;
+        }
+
+        .config-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--gray-dark);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .config-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: var(--gray-medium);
+        }
+
+        .config-close:hover {
+            color: var(--black);
+        }
+
+        .config-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .config-form {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .config-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .config-field label {
+            margin-bottom: 5px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .config-field input {
+            padding: 8px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+        }
+
+        .config-buttons {
+            grid-column: span 2;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        @media (max-width: 768px) {
+            .config-buttons {
+                grid-column: span 1;
+            }
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.11.0/dist/pptxgen.bundle.js"></script>
 </head>
@@ -1264,14 +1366,14 @@
         <div class="header-content">
             <h1>
                 <div class="logo">📋</div>
-                Sistema Avançado de Inspeção
+                Sistema Avançado de Inspeção - Versão em Rede
             </h1>
             <button class="menu-toggle" onclick="toggleMenu()">
                 ☰ Menu
             </button>
             <div class="nav-menu" id="navMenu">
                 <div class="file-input-wrapper">
-                    <button class="btn btn-info">
+                    <button class="btn btn-info" onclick="document.getElementById('importJson').click()">
                         📂 Importar JSON
                     </button>
                     <input type="file" id="importJson" accept=".json" onchange="importJSON(event)">
@@ -1282,9 +1384,45 @@
                 <button class="btn btn-primary" onclick="exportSelectedPPT()">
                     📽️ Exportar PPT
                 </button>
+                <button class="btn btn-secondary" onclick="toggleNetworkConfig()">
+                    ⚙️ Configuração de Rede
+                </button>
+                <button class="btn btn-info" onclick="syncData()">
+                    🔄 Sincronizar Agora
+                </button>
             </div>
         </div>
     </header>
+
+    <!-- Configuração de Rede -->
+    <div class="network-config" id="networkConfig">
+        <div class="config-title">
+            Configuração de Rede
+            <button class="config-close" onclick="toggleNetworkConfig()">&times;</button>
+        </div>
+        <div class="config-form">
+            <div class="config-field">
+                <label for="serverUrl">URL do Servidor</label>
+                <input type="text" id="serverUrl" placeholder="http://servidor.local/api" value="">
+            </div>
+            <div class="config-field">
+                <label for="syncInterval">Intervalo de Sincronização (segundos)</label>
+                <input type="number" id="syncInterval" min="10" value="30">
+            </div>
+            <div class="config-field">
+                <label for="apiKey">Chave de API (opcional)</label>
+                <input type="password" id="apiKey" placeholder="Chave de autenticação">
+            </div>
+            <div class="config-field">
+                <label for="dataPath">Caminho do Arquivo de Dados</label>
+                <input type="text" id="dataPath" placeholder="/data/inspections.json" value="/data/inspections.json">
+            </div>
+            <div class="config-buttons">
+                <button class="btn btn-secondary" onclick="testConnection()">Testar Conexão</button>
+                <button class="btn btn-primary" onclick="saveNetworkConfig()">Salvar Configuração</button>
+            </div>
+        </div>
+    </div>
 
     <div class="container">
         <div class="stats">
@@ -1305,9 +1443,9 @@
                 <div class="stat-label">Inspeções Concluídas</div>
             </div>
         </div>
-        <div class="backup-status">
-            <div class="backup-indicator"></div>
-            <span id="lastBackup">Backup automático: Ativado</span>
+        <div class="sync-indicator">
+            <div class="sync-status" id="syncStatus"></div>
+            <span id="syncMessage">Sincronização: Desativada</span>
         </div>
 
         <div class="main-content">
@@ -2185,7 +2323,8 @@
                                         <input type="radio" id="ban2_na" name="ban2" value="na">
                                         <label for="ban2_na">N/A</label>
                                     </div>
-                                </div>                            </div>
+                                </div>
+                            </div>
                             
                             <div class="checklist-question">
                                 <div class="question-text">Os chuveiros e armários estão em boas condições de uso?</div>
@@ -2321,8 +2460,7 @@
                                 <div class="question-text">As exigências mínimas da NR 10 estão sendo cumpridas (equipamentos / instalações)?</div>
                                 <div class="answer-options">
                                     <div class="answer-option">
-                                        <input type="radio" id="ele2_sim" name="ele2" value="sim">
-                                        <label for="ele2_sim">Sim</label>
+                                                                                <label for="ele2_sim">Sim</label>
                                     </div>
                                     <div class="answer-option">
                                         <input type="radio" id="ele2_nao" name="ele2" value="nao">
@@ -2599,7 +2737,7 @@
                         🔤 Texto
                     </button>
                     <input type="color" class="color-picker" id="colorPicker" value="#ff0000">
-                                       <button class="editor-tool" onclick="clearAnnotations()" title="Desfazer última anotação">
+                    <button class="editor-tool" onclick="clearAnnotations()" title="Desfazer última anotação">
                         ↩️ Desfazer
                     </button>
                     <button class="editor-tool" onclick="saveEditedPhoto()" style="background: var(--success);">
@@ -2675,6 +2813,518 @@
     <div class="toast" id="toast"></div>
 
     <script>
+        // =================================================================
+        // SISTEMA DE SINCRONIZAÇÃO EM REDE
+        // =================================================================
+        
+        // Configuração de rede
+        let networkConfig = {
+            serverUrl: '',
+            syncInterval: 30,
+            apiKey: '',
+            dataPath: '/data/inspections.json',
+            lastSync: null,
+            syncEnabled: false,
+            syncTimer: null
+        };
+
+        // Carregar configuração de rede do localStorage
+        function loadNetworkConfig() {
+            const saved = localStorage.getItem('networkConfig');
+            if (saved) {
+                networkConfig = { ...networkConfig, ...JSON.parse(saved) };
+                updateNetworkConfigUI();
+            }
+        }
+
+        // Salvar configuração de rede
+        function saveNetworkConfigToStorage() {
+            localStorage.setItem('networkConfig', JSON.stringify(networkConfig));
+        }
+
+        // Atualizar UI com configuração atual
+        function updateNetworkConfigUI() {
+            document.getElementById('serverUrl').value = networkConfig.serverUrl;
+            document.getElementById('syncInterval').value = networkConfig.syncInterval;
+            document.getElementById('apiKey').value = networkConfig.apiKey;
+            document.getElementById('dataPath').value = networkConfig.dataPath;
+        }
+
+        // Toggle painel de configuração
+        function toggleNetworkConfig() {
+            const configPanel = document.getElementById('networkConfig');
+            configPanel.classList.toggle('active');
+        }
+
+        // Salvar configuração de rede
+        function saveNetworkConfig() {
+            networkConfig.serverUrl = document.getElementById('serverUrl').value;
+            networkConfig.syncInterval = parseInt(document.getElementById('syncInterval').value);
+            networkConfig.apiKey = document.getElementById('apiKey').value;
+            networkConfig.dataPath = document.getElementById('dataPath').value;
+            
+            saveNetworkConfigToStorage();
+            
+            if (networkConfig.serverUrl) {
+                networkConfig.syncEnabled = true;
+                startAutoSync();
+                showToast('Configuração de rede salva e sincronização ativada!', 'success');
+            } else {
+                networkConfig.syncEnabled = false;
+                stopAutoSync();
+                showToast('Configuração salva. Sincronização desativada (URL do servidor não definida).', 'info');
+            }
+            
+            toggleNetworkConfig();
+        }
+
+        // Testar conexão com o servidor
+        async function testConnection() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            if (!serverUrl) {
+                showToast('Por favor, insira a URL do servidor', 'error');
+                return;
+            }
+
+            try {
+                updateSyncStatus('syncing', 'Testando conexão...');
+                
+                const response = await fetch(`${serverUrl}/test`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': document.getElementById('apiKey').value || ''
+                    }
+                });
+
+                if (response.ok) {
+                    updateSyncStatus('success', 'Conexão bem-sucedida!');
+                    showToast('Conexão com o servidor estabelecida com sucesso!', 'success');
+                } else {
+                    throw new Error(`Erro ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                updateSyncStatus('error', 'Falha na conexão');
+                showToast(`Falha ao conectar: ${error.message}`, 'error');
+            }
+        }
+
+        // Iniciar sincronização automática
+        function startAutoSync() {
+            if (networkConfig.syncTimer) {
+                clearInterval(networkConfig.syncTimer);
+            }
+            
+            if (networkConfig.syncEnabled && networkConfig.serverUrl) {
+                networkConfig.syncTimer = setInterval(() => {
+                    syncData();
+                }, networkConfig.syncInterval * 1000);
+                
+                updateSyncStatus('success', `Sincronização automática ativa (${networkConfig.syncInterval}s)`);
+            }
+        }
+
+        // Parar sincronização automática
+        function stopAutoSync() {
+            if (networkConfig.syncTimer) {
+                clearInterval(networkConfig.syncTimer);
+                networkConfig.syncTimer = null;
+            }
+            updateSyncStatus('', 'Sincronização: Desativada');
+        }
+
+        // Atualizar status de sincronização na UI
+        function updateSyncStatus(status, message) {
+            const statusElement = document.getElementById('syncStatus');
+            const messageElement = document.getElementById('syncMessage');
+            
+            statusElement.className = 'sync-status';
+            if (status) {
+                statusElement.classList.add(status);
+            }
+            messageElement.textContent = message;
+        }
+
+        // Sincronizar dados com o servidor
+        async function syncData() {
+            if (!networkConfig.syncEnabled || !networkConfig.serverUrl) {
+                return;
+            }
+
+            try {
+                updateSyncStatus('syncing', 'Sincronizando...');
+                
+                // Obter dados locais
+                const localData = {
+                    inspections: inspections,
+                    lastModified: new Date().toISOString()
+                };
+
+                // Enviar para o servidor
+                const response = await fetch(`${networkConfig.serverUrl}${networkConfig.dataPath}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': networkConfig.apiKey || ''
+                    },
+                    body: JSON.stringify(localData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro ${response.status}: ${response.statusText}`);
+                }
+
+                // Obter dados atualizados do servidor
+                const serverResponse = await fetch(`${networkConfig.serverUrl}${networkConfig.dataPath}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': networkConfig.apiKey || ''
+                    }
+                });
+
+                if (serverResponse.ok) {
+                    const serverData = await serverResponse.json();
+                    
+                    // Mesclar dados (priorizar dados mais recentes)
+                    if (serverData.inspections && Array.isArray(serverData.inspections)) {
+                        // Implementar lógica de mesclagem aqui
+                        // Por enquanto, vamos substituir completamente
+                        inspections = serverData.inspections;
+                        renderInspections();
+                        updateStats();
+                    }
+                }
+
+                networkConfig.lastSync = new Date().toISOString();
+                updateSyncStatus('success', `Sincronizado em ${new Date().toLocaleTimeString('pt-BR')}`);
+                
+            } catch (error) {
+                console.error('Erro na sincronização:', error);
+                updateSyncStatus('error', 'Falha na sincronização');
+                showToast(`Erro na sincronização: ${error.message}`, 'error');
+            }
+        }
+
+        // =================================================================
+        // BLOCO DE CÓDIGO CORRIGIDO - EDITOR DE FOTOS
+        // =================================================================
+
+        // Objeto para gerenciar o estado do editor de fotos
+        const PhotoEditor = {
+            canvas: null,
+            ctx: null,
+            img: null,
+            isDrawing: false,
+            startX: 0,
+            startY: 0,
+            currentAnnotation: null,
+            annotations: [],
+            tool: 'arrow',
+            color: '#ff0000',
+
+            // Inicializa o editor com uma imagem
+            async init(canvasId, imageSrc) {
+                this.canvas = document.getElementById(canvasId);
+                if (!this.canvas) {
+                    console.error("Canvas não encontrado.");
+                    return false;
+                }
+                this.ctx = this.canvas.getContext('2d');
+
+                try {
+                    await this.loadImage(imageSrc);
+                    this.setupEvents();
+                    return true;
+                } catch (error) {
+                    console.error("Falha ao inicializar o PhotoEditor:", error);
+                    return false;
+                }
+            },
+
+            // Carrega a imagem no canvas
+            loadImage(src) {
+                return new Promise((resolve, reject) => {
+                    this.img = new Image();
+                    
+                    this.img.onload = () => {
+                        console.log('Imagem carregada. Dimensões:', this.img.width, 'x', this.img.height);
+                        
+                        // 1. Redefine o tamanho do canvas para o tamanho da imagem
+                        this.canvas.width = this.img.width;
+                        this.canvas.height = this.img.height;
+                        
+                        // 2. Limpa o canvas completamente
+                        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                        
+                        // 3. Desenha a imagem no canvas
+                        this.ctx.drawImage(this.img, 0, 0);
+                        
+                        // 4. Redesenha as anotações por cima
+                        this.annotations.forEach(ann => this.drawAnnotation(ann));
+                        
+                        console.log('Canvas atualizado com a imagem e anotações.');
+                        resolve();
+                    };
+
+                    this.img.onerror = (error) => {
+                        console.error("Erro ao carregar a imagem para o editor:", error);
+                        reject(error);
+                    };
+
+                    // Inicia o carregamento da imagem
+                    this.img.src = src;
+                });
+            },
+
+            // Redesenha a imagem e todas as anotações
+            redraw() {
+                if (!this.img) return;
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.drawImage(this.img, 0, 0);
+                this.annotations.forEach(ann => this.drawAnnotation(ann));
+            },
+
+            // Configura os eventos de mouse para o canvas
+            setupEvents() {
+                // Remove listeners antigos para evitar duplicatas
+                const newCanvas = this.canvas.cloneNode(true);
+                this.canvas.parentNode.replaceChild(newCanvas, this.canvas);
+                this.canvas = newCanvas;
+                this.ctx = this.canvas.getContext('2d');
+
+                // Eventos de mouse
+                this.canvas.onmousedown = (e) => this.startDrawing(e);
+                this.canvas.onmousemove = (e) => this.draw(e);
+                this.canvas.onmouseup = () => this.stopDrawing();
+                this.canvas.onmouseleave = () => this.stopDrawing();
+            },
+
+            // Inicia o desenho de uma anotação
+            startDrawing(e) {
+                this.isDrawing = true;
+                const coords = this.getCoordinates(e);
+                this.startX = coords.x;
+                this.startY = coords.y;
+
+                this.currentAnnotation = {
+                    type: this.tool,
+                    startX: this.startX,
+                    startY: this.startY,
+                    endX: this.startX,
+                    endY: this.startY,
+                    color: this.color,
+                    text: this.tool === 'text' ? 'Texto' : null
+                };
+            },
+
+            // Desenha a anotação enquanto o mouse se move
+            draw(e) {
+                if (!this.isDrawing || !this.currentAnnotation) return;
+                const coords = this.getCoordinates(e);
+                this.currentAnnotation.endX = coords.x;
+                this.currentAnnotation.endY = coords.y;
+
+                this.redraw(); // Redesenha tudo
+                this.drawAnnotation(this.currentAnnotation); // Desenha a anotação atual por cima
+            },
+
+            // Finaliza o desenho e salva a anotação
+            stopDrawing() {
+                if (!this.isDrawing || !this.currentAnnotation) return;
+                this.isDrawing = false;
+
+                if (this.tool === 'text') {
+                    const text = prompt("Digite o texto:", "Texto");
+                    if (text !== null) {
+                        this.currentAnnotation.text = text;
+                    } else {
+                        this.redraw(); // Cancela se não houver texto
+                        this.currentAnnotation = null;
+                        return;
+                    }
+                }
+
+                this.annotations.push(this.currentAnnotation);
+                this.redraw();
+                this.currentAnnotation = null;
+            },
+
+            // Desenha uma anotação específica no canvas
+            drawAnnotation(annotation) {
+                this.ctx.strokeStyle = annotation.color;
+                this.ctx.lineWidth = 3;
+                this.ctx.fillStyle = annotation.color;
+                this.ctx.font = '16px Arial';
+
+                switch (annotation.type) {
+                    case 'arrow':
+                        this.drawArrow(annotation.startX, annotation.startY, annotation.endX, annotation.endY);
+                        break;
+                    case 'circle': {
+                        const radiusX = Math.abs(annotation.endX - annotation.startX);
+                        const radiusY = Math.abs(annotation.endY - annotation.startY);
+                        this.ctx.beginPath();
+                        this.ctx.ellipse(annotation.startX, annotation.startY, radiusX, radiusY, 0, 0, 2 * Math.PI);
+                        this.ctx.stroke();
+                        break;
+                    }
+                    case 'rectangle':
+                        this.ctx.strokeRect(
+                            annotation.startX,
+                            annotation.startY,
+                            annotation.endX - annotation.startX,
+                            annotation.endY - annotation.startY
+                        );
+                        break;
+                    case 'text':
+                        if (annotation.text) {
+                            this.ctx.fillText(annotation.text, annotation.startX, annotation.startY);
+                        }
+                        break;
+                }
+            },
+
+            // Desenha uma seta
+            drawArrow(fromX, fromY, toX, toY) {
+                const headLength = 15;
+                const angle = Math.atan2(toY - fromY, toX - fromX);
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(fromX, fromY);
+                this.ctx.lineTo(toX, toY);
+                this.ctx.stroke();
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(toX, toY);
+                this.ctx.lineTo(toX - headLength * Math.cos(angle - Math.PI / 6), toY - headLength * Math.sin(angle - Math.PI / 6));
+                this.ctx.moveTo(toX, toY);
+                this.ctx.lineTo(toX - headLength * Math.cos(angle + Math.PI / 6), toY - headLength * Math.sin(angle + Math.PI / 6));
+                this.ctx.stroke();
+            },
+
+            // Obtém as coordenadas do mouse relativas ao canvas
+            getCoordinates(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: (e.clientX - rect.left) * (this.canvas.width / rect.width),
+                    y: (e.clientY - rect.top) * (this.canvas.height / rect.height)
+                };
+            },
+
+            // Define a ferramenta de desenho atual
+            setTool(tool) {
+                this.tool = tool;
+                document.querySelectorAll('.editor-tool').forEach(btn => btn.classList.remove('active'));
+                document.getElementById(tool + 'Tool')?.classList.add('active');
+            },
+
+            // Limpa a última anotação
+            undo() {
+                if (this.annotations.length > 0) {
+                    this.annotations.pop();
+                    this.redraw();
+                    showToast('Última anotação removida', 'success');
+                } else {
+                    showToast('Nenhuma anotação para remover', 'info');
+                }
+            }
+        };
+
+        // =================================================================
+        // FUNÇÕES GLOBAIS DO EDITOR (Chamadas pelos botões na UI)
+        // =================================================================
+
+        // Função chamada ao clicar em "Editar Foto"
+        async function editPhoto(event, index) {
+            event.stopPropagation();
+            if (index === undefined || index === null || !photos || !photos[index]) {
+                showToast('Erro ao editar foto: foto não encontrada.', 'error');
+                return;
+            }
+
+            // Define as variáveis globais para o contexto de edição
+            currentEditingPhoto = JSON.parse(JSON.stringify(photos[index]));
+            currentPhotoIndex = index;
+
+            // Abre o modal e inicializa o editor
+            const modal = document.getElementById('photoEditorModal');
+            modal.classList.add('active');
+
+            const success = await PhotoEditor.init('editorCanvas', currentEditingPhoto.src);
+            if (!success) {
+                showToast('Ocorreu um erro ao abrir o editor de fotos.', 'error');
+                closePhotoEditor();
+                return;
+            }
+
+            // Define a ferramenta e cor iniciais
+            PhotoEditor.setTool(editorTool);
+            PhotoEditor.color = document.getElementById('colorPicker').value;
+        }
+
+        // Função para salvar a foto editada
+        function saveEditedPhoto() {
+            if (currentPhotoIndex === undefined || currentPhotoIndex === null || !photos || !photos[currentPhotoIndex]) {
+                showToast('Erro interno: Foto não encontrada. Tente novamente.', 'error');
+                return;
+            }
+
+            try {
+                // Pega a imagem do canvas como DataURL
+                const editedImageData = PhotoEditor.canvas.toDataURL('image/png');
+                
+                // Atualiza a foto no array com a nova imagem e as anotações
+                photos[currentPhotoIndex].src = editedImageData;
+                photos[currentPhotoIndex].annotations = [...PhotoEditor.annotations];
+                
+                renderPhotoGallery();
+                closePhotoEditor();
+                
+                if (!currentEditingInspectionId) {
+                    saveFormState();
+                }
+                
+                // Sincroniza com a rede se estiver ativo
+                if (networkConfig.syncEnabled) {
+                    syncData();
+                }
+                
+                showToast('Foto editada com sucesso!', 'success');
+            } catch (error) {
+                console.error('Erro ao salvar a foto editada:', error);
+                showToast('Ocorreu um erro ao salvar a foto. Tente novamente.', 'error');
+            }
+        }
+
+        // Função para fechar o editor
+        function closePhotoEditor() {
+            document.getElementById('photoEditorModal').classList.remove('active');
+            // Limpa o estado do editor para a próxima vez
+            PhotoEditor.annotations = [];
+            PhotoEditor.currentAnnotation = null;
+            PhotoEditor.isDrawing = false;
+        }
+
+        // Funções chamadas pelos botões da barra de ferramentas
+        function setEditorTool(tool) {
+            editorTool = tool;
+            PhotoEditor.setTool(tool);
+        }
+
+        function clearAnnotations() {
+            PhotoEditor.undo();
+        }
+
+        // Garante que o seletor de cor atualize a cor do editor
+        document.getElementById('colorPicker').addEventListener('change', (e) => {
+            PhotoEditor.color = e.target.value;
+        });
+
+        // =================================================================
+        // RESTO DO CÓDIGO JAVASCRIPT
+        // =================================================================
+
         // Variáveis globais
         let selectedRiskLevel = null;
         let photos = [];
@@ -2684,9 +3334,6 @@
         let currentInspectionId = null;
         let currentPhotoId = null;
         let editorTool = 'arrow';
-        let isDrawing = false;
-        let startX, startY;
-        let annotations = [];
         let currentPhotoRisk = null;
         let currentFilter = 'all';
         let currentEditingInspectionId = null;
@@ -2702,225 +3349,344 @@
         document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
         });
-        
-  function initializeApp() {
-    // Carrega dados do localStorage
-    loadDataFromStorage();
-    
-    // TENTA RESTAURAR O ESTADO DO FORMULÁRIO DE FORMA LIMPA
-    try {
-        const formState = localStorage.getItem('formState');
-        if (formState) {
-            const state = JSON.parse(formState);
+
+        function initializeApp() {
+            loadNetworkConfig(); // Carregar configuração de rede primeiro
+            loadDataFromStorage();
             
-            // 1. Restaura os campos de texto e datas
-            document.getElementById('areaName').value = state.areaName || '';
-            document.getElementById('inspectionDate').value = state.inspectionDate || '';
-            document.getElementById('deadlineDate').value = state.deadlineDate || '';
-            document.getElementById('location').value = state.location || '';
-            document.getElementById('observations').value = state.observations || '';
-            
-            // 2. Restaura o nível de risco
-            if (state.selectedRiskLevel) {
-                setRiskLevel(state.selectedRiskLevel);
+            try {
+                const formState = localStorage.getItem('formState');
+                if (formState) {
+                    const state = JSON.parse(formState);
+                    
+                    document.getElementById('areaName').value = state.areaName || '';
+                    document.getElementById('inspectionDate').value = state.inspectionDate || '';
+                    document.getElementById('deadlineDate').value = state.deadlineDate || '';
+                    document.getElementById('location').value = state.location || '';
+                    document.getElementById('observations').value = state.observations || '';
+                    
+                    if (state.selectedRiskLevel) {
+                        setRiskLevel(state.selectedRiskLevel);
+                    }
+                    
+                    if (state.photos && Array.isArray(state.photos)) {
+                        photos = state.photos;
+                    }
+                    
+                    if (state.areaPhoto) {
+                        document.getElementById('areaPhotoGallery').innerHTML = `
+                            <div class="photo-item">
+                                <img src="${state.areaPhoto}" alt="Foto da Área">
+                                <div class="photo-actions">
+                                    <button class="photo-action-btn" onclick="deleteAreaPhoto(event, this)">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="add-photo-btn" onclick="addAreaPhoto()">
+                                <span>📷</span>
+                                <small>Adicionar mais fotos</small>
+                            </div>
+                        `;
+                    }
+                    
+                    if (state.checklistMemory && typeof state.checklistMemory === 'object') {
+                        checklistMemory = state.checklistMemory;
+                    }
+                    
+                    console.log('Estado do formulário restaurado com sucesso.');
+                } else {
+                    const today = new Date();
+                    document.getElementById('inspectionDate').valueAsDate = today;
+                    const deadline = new Date(today);
+                    deadline.setDate(deadline.getDate() + 30);
+                    document.getElementById('deadlineDate').valueAsDate = deadline;
+                }
+            } catch (error) {
+                console.error('Erro ao restaurar estado do formulário:', error);
+                localStorage.removeItem('formState');
             }
             
-            // 3. Restaura as fotos da inspeção para a variável
-            if (state.photos && Array.isArray(state.photos)) {
-                photos = state.photos;
-            }
-            
-            // 4. Restaura a foto da área
-            if (state.areaPhoto) {
-                document.getElementById('areaPhotoGallery').innerHTML = `
-                    <div class="photo-item">
-                        <img src="${state.areaPhoto}" alt="Foto da Área">
-                        <div class="photo-actions">
-                            <button class="photo-action-btn" onclick="deleteAreaPhoto(event, this)">
-                                🗑️
-                            </button>
-                        </div>
-                    </div>
-                    <div class="add-photo-btn" onclick="addAreaPhoto()">
-                        <span>📷</span>
-                        <small>Adicionar mais fotos</small>
-                    </div>
-                `;
-            }
-            
-            // 5. Restaura os dados do checklist para a variável
-            if (state.checklistMemory && typeof state.checklistMemory === 'object') {
-                checklistMemory = state.checklistMemory;
-            }
-            
-            console.log('Estado do formulário restaurado com sucesso.');
-        } else {
-            // Se não há estado salvo, configura as datas padrão
-            const today = new Date();
-            document.getElementById('inspectionDate').valueAsDate = today;
-            const deadline = new Date(today);
-            deadline.setDate(deadline.getDate() + 30);
-            document.getElementById('deadlineDate').valueAsDate = deadline;
-        }
-    } catch (error) {
-        console.error('Erro ao restaurar estado do formulário:', error);
-        // Em caso de erro, limpa o estado para evitar problemas
-        localStorage.removeItem('formState');
-    }
-    
-    // Renderiza inspeções e estatísticas
-    renderInspections();
-    updateStats();
-    
-    // Configura event listeners
-    setupEventListeners();
-    
-    // Agora, renderiza as partes que dependem do estado
-    renderPhotoGallery();
-    
-    // Aplica o estado do checklist ao DOM e atualiza o resumo
-    applyChecklistStateToDOM();
-    updateChecklistSummary();
-    
-    // Inicia backup automático
-    startAutoBackup();
-}
-    function setupEventListeners() {
-    // Form submit - ÚNICO lugar onde o salvamento da inspeção deve ocorrer
-    document.getElementById('inspectionForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        saveInspection();
-    });
-    
-    // Auto-save em mudanças nos campos (APENAS se não estiver editando)
-    const formFields = document.querySelectorAll('#inspectionForm input[type="text"], #inspectionForm textarea, #inspectionForm input[type="date"]');
-    formFields.forEach(field => {
-        field.addEventListener('input', function() {
-            if (!currentEditingInspectionId) {
-                saveFormState();
-            }
-        });
-    });
-    
-    // Checklist listeners - Salva o estado na memória e no localStorage
-    document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
-        input.addEventListener('change', function() {
-            // Salva na memória temporária
-            const tabId = this.closest('.checklist-content').id;
-            if (!checklistMemory[tabId]) {
-                checklistMemory[tabId] = {};
-            }
-            checklistMemory[tabId][this.name] = this.value;
-            
-            // Salva o estado completo no localStorage
-            if (!currentEditingInspectionId) {
-                saveFormState();
-            }
-            
+            renderInspections();
+            updateStats();
+            setupEventListeners();
+            renderPhotoGallery();
+            applyChecklistStateToDOM();
             updateChecklistSummary();
-        });
-    });
-    
-    // Previne perda de dados ao sair da página
-    window.addEventListener('beforeunload', function(e) {
-        if (hasUnsavedChanges()) {
-            e.preventDefault();
-            e.returnValue = '';
+            startAutoBackup();
+            
+            // Iniciar sincronização automática se configurado
+            if (networkConfig.syncEnabled) {
+                startAutoSync();
+            }
         }
-    });
-}
-       function loadDataFromStorage() {
-    try {
-        // Carrega inspeções
-        const savedInspections = localStorage.getItem('inspections');
-        if (savedInspections) {
-            inspections = JSON.parse(savedInspections);
+
+        // Modificar função saveInspections para incluir sincronização
+        function saveInspections() {
+            try {
+                const inspectionsData = JSON.stringify(inspections);
+                localStorage.setItem('inspections', inspectionsData);
+                
+                // Limpa o estado do formulário após um salvamento bem-sucedido
+                localStorage.removeItem('formState'); 
+                localStorage.setItem('inspections_last_save', new Date().toISOString());
+                
+                console.log('Inspeções salvas com sucesso:', inspections.length);
+                
+                // Sincronizar com a rede se estiver ativo
+                if (networkConfig.syncEnabled) {
+                    syncData();
+                }
+                
+                return true;
+            } catch (error) {
+                console.error('Erro ao salvar inspeções:', error);
+                
+                // Verifica se o erro é de estouro de cota do localStorage
+                if (error.name === 'QuotaExceededError' || error.code === 22) {
+                    showToast('Erro: Espaço de armazenamento cheio. Tente excluir algumas inspeções com muitas fotos ou limpe os dados do navegador.', 'error');
+                } else {
+                    showToast('Erro ao salvar inspeções. Tente novamente.', 'error');
+                }
+                return false;
+            }
         }
-        
-        // NÃO RESTAURA NADA DO FORMSTATE AQUI
-        // A restauração será feita manualmente apenas quando necessário
-        
-        console.log('Dados carregados com sucesso');
-    } catch (error) {
-        console.error('Erro ao carregar dados:', error);
-        showToast('Erro ao carregar dados salvos', 'error');
-    }
-}
-        
-  function saveFormState() {
-    // BLOQUEIO TOTAL: Não salva NADA se estiver editando uma inspeção existente
-    if (currentEditingInspectionId) {
-        console.log("Salvamento de estado do formulário bloqueado durante a edição.");
-        return;
-    }
-    
-    try {
-        // Captura o estado mais recente do checklist diretamente do DOM
-        const currentChecklistState = {};
-        document.querySelectorAll('.checklist-question input[type="radio"]:checked').forEach(input => {
-            const tabId = input.closest('.checklist-content').id;
-            if (!currentChecklistState[tabId]) {
-                currentChecklistState[tabId] = {};
-            }
-            currentChecklistState[tabId][input.name] = input.value;
-        });
 
-        // Captura a foto da área atual
-        const areaPhotoGallery = document.getElementById('areaPhotoGallery');
-        const areaPhotoImg = areaPhotoGallery.querySelector('img');
-        const areaPhoto = areaPhotoImg ? areaPhotoImg.src : null;
+        // Modificar função saveInspection para incluir sincronização
+        function saveInspection(e) {
+            console.log('Iniciando salvamento da inspeção...');
+            
+            if (currentEditingInspectionId) {
+                const modalIsOpen = document.querySelector('.modal.active');
+                if (modalIsOpen) {
+                    console.warn('Tentativa de salvar inspeção enquanto um modal está aberto. Operação cancelada para evitar perda de dados.');
+                    showToast('Por favor, feche a janela de edição de foto antes de salvar a inspeção.', 'error');
+                    if (e) e.preventDefault();
+                    return;
+                }
+            }
 
-        const formState = {
-            areaName: document.getElementById('areaName').value,
-            inspectionDate: document.getElementById('inspectionDate').value,
-            deadlineDate: document.getElementById('deadlineDate').value,
-            location: document.getElementById('location').value,
-            observations: document.getElementById('observations').value,
-            selectedRiskLevel: selectedRiskLevel,
-            photos: photos,
-            areaPhoto: areaPhoto,
-            checklistMemory: currentChecklistState,
-            timestamp: new Date().toISOString()
-        };
-        
-        localStorage.setItem('formState', JSON.stringify(formState));
-        
-        // Atualiza indicador de backup
-        updateBackupIndicator();
-    } catch (error) {
-        console.error('Erro ao salvar estado do formulário:', error);
-    }
-}
-        function restoreFormState(state) {
-            if (!state) return;
+            const areaName = document.getElementById('areaName').value.trim();
+            const inspectionDate = document.getElementById('inspectionDate').value;
+            const deadlineDate = document.getElementById('deadlineDate').value;
             
-            document.getElementById('areaName').value = state.areaName || '';
-            document.getElementById('inspectionDate').value = state.inspectionDate || '';
-            document.getElementById('deadlineDate').value = state.deadlineDate || '';
-            document.getElementById('location').value = state.location || '';
-            document.getElementById('observations').value = state.observations || '';
-            
-            if (state.selectedRiskLevel) {
-                setRiskLevel(state.selectedRiskLevel);
+            if (!areaName) {
+                showToast('Por favor, preencha o nome da área', 'error');
+                if (e) e.preventDefault();
+                return;
             }
             
-            if (state.photos) {
-                photos = state.photos;
-                renderPhotoGallery();
+            if (!inspectionDate) {
+                showToast('Por favor, selecione a data da inspeção', 'error');
+                if (e) e.preventDefault();
+                return;
             }
             
-            if (state.checklistMemory) {
-                checklistMemory = state.checklistMemory;
-                // Restora as respostas do checklist
-                Object.keys(checklistMemory).forEach(tabId => {
-                    Object.keys(checklistMemory[tabId]).forEach(key => {
-                        const input = document.querySelector(`input[name="${key}"][value="${checklistMemory[tabId][key]}"]`);
-                        if (input) {
-                            input.checked = true;
-                        }
-                    });
+            if (!deadlineDate) {
+                showToast('Por favor, defina o prazo para conclusão', 'error');
+                if (e) e.preventDefault();
+                return;
+            }
+            
+            if (!selectedRiskLevel) {
+                showToast('Por favor, selecione um nível de risco geral', 'error');
+                if (e) e.preventDefault();
+                return;
+            }
+
+            if (photos.length === 0) {
+                showToast('Por favor, adicione pelo menos uma foto', 'error');
+                if (e) e.preventDefault();
+                return;
+            }
+            
+            const areaPhotoGallery = document.getElementById('areaPhotoGallery');
+            const areaPhoto = areaPhotoGallery.querySelector('img') ? 
+                areaPhotoGallery.querySelector('img').src : null;
+                
+            const finalChecklistData = collectChecklistData();
+            console.log('Dados finais do checklist coletados:', finalChecklistData);
+            
+            if (currentEditingInspectionId) {
+                updateInspection(currentEditingInspectionId);
+            } else {
+                const inspection = {
+                    id: Date.now(),
+                    areaName: areaName,
+                    areaPhoto: areaPhoto,
+                    date: inspectionDate,
+                    deadlineDate: deadlineDate,
+                    location: document.getElementById('location').value,
+                    riskLevel: selectedRiskLevel,
+                    observations: document.getElementById('observations').value,
+                    photos: photos,
+                    checklistData: finalChecklistData,
+                    status: calculateInspectionStatus(photos),
+                    completionPercentage: calculateCompletionPercentage(photos),
+                    timestamp: new Date().toISOString(),
+                    modifiedBy: getCurrentUser(), // Adicionar usuário atual
+                    syncStatus: 'pending' // Status de sincronização
+                };
+                
+                console.log('Nova inspeção criada:', inspection);
+                
+                inspections.unshift(inspection);
+                
+                if (saveInspections()) {
+                    showToast('Inspeção salva com sucesso!', 'success');
+                    resetForm();
+                    renderInspections();
+                    updateStats();
+                    localStorage.setItem('inspections_last_update', new Date().toISOString());
+                    document.querySelector('.history-container').classList.add('success-animation');
+                    setTimeout(() => {
+                        document.querySelector('.history-container').classList.remove('success-animation');
+                    }, 500);
+                }
+            }
+        }
+
+        // Função para obter usuário atual (pode ser personalizada)
+        function getCurrentUser() {
+            // Em um ambiente real, isso poderia vir de um sistema de autenticação
+            return localStorage.getItem('currentUser') || 'Usuário Anônimo';
+        }
+
+        // Adicionar função para definir usuário atual
+        function setCurrentUser(username) {
+            localStorage.setItem('currentUser', username);
+        }
+
+        // Continuar com o resto das funções existentes...
+        // [Todas as outras funções do seu código original continuam aqui]
+        
+        function setupEventListeners() {
+            document.getElementById('inspectionForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                saveInspection();
+            });
+            
+            const formFields = document.querySelectorAll('#inspectionForm input[type="text"], #inspectionForm textarea, #inspectionForm input[type="date"]');
+            formFields.forEach(field => {
+                field.addEventListener('input', function() {
+                    if (!currentEditingInspectionId) {
+                        saveFormState();
+                    }
                 });
-                updateChecklistSummary();
+            });
+            
+            document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
+                input.addEventListener('change', function() {
+                    const tabId = this.closest('.checklist-content').id;
+                    if (!checklistMemory[tabId]) {
+                        checklistMemory[tabId] = {};
+                    }
+                    checklistMemory[tabId][this.name] = this.value;
+                    
+                    if (!currentEditingInspectionId) {
+                        saveFormState();
+                    }
+                    
+                    updateChecklistSummary();
+                });
+            });
+            
+            window.addEventListener('beforeunload', function(e) {
+                const currentChecklistState = {};
+                document.querySelectorAll('.checklist-question input[type="radio"]:checked').forEach(input => {
+                    const tabId = input.closest('.checklist-content').id;
+                    if (!currentChecklistState[tabId]) {
+                        currentChecklistState[tabId] = {};
+                    }
+                    currentChecklistState[tabId][input.name] = input.value;
+                });
+                
+                const formState = localStorage.getItem('formState');
+                if (formState) {
+                    const state = JSON.parse(formState);
+                    const timeDiff = new Date() - new Date(state.timestamp);
+                    const minutesDiff = timeDiff / (1000 * 60);
+                    
+                    if (minutesDiff < 5 && (state.areaName || state.observations || photos.length > 0)) {
+                        e.preventDefault();
+                        e.returnValue = '';
+                    }
+                }
+            });
+        }
+        
+        function loadDataFromStorage() {
+            try {
+                const savedInspections = localStorage.getItem('inspections');
+                if (savedInspections) {
+                    inspections = JSON.parse(savedInspections);
+                }
+                
+                console.log('Dados carregados com sucesso');
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+                showToast('Erro ao carregar dados salvos', 'error');
+            }
+        }
+        
+        function saveFormState() {
+            if (currentEditingInspectionId) {
+                console.log("Salvamento de estado do formulário bloqueado durante a edição.");
+                return;
+            }
+            
+            try {
+                const currentChecklistState = {};
+                document.querySelectorAll('.checklist-question input[type="radio"]:checked').forEach(input => {
+                    const tabId = input.closest('.checklist-content').id;
+                    if (!currentChecklistState[tabId]) {
+                        currentChecklistState[tabId] = {};
+                    }
+                    currentChecklistState[tabId][input.name] = input.value;
+                });
+
+                const areaPhotoGallery = document.getElementById('areaPhotoGallery');
+                const areaPhotoImg = areaPhotoGallery.querySelector('img');
+                const areaPhoto = areaPhotoImg ? areaPhotoImg.src : null;
+
+                const formState = {
+                    areaName: document.getElementById('areaName').value,
+                    inspectionDate: document.getElementById('inspectionDate').value,
+                    deadlineDate: document.getElementById('deadlineDate').value,
+                    location: document.getElementById('location').value,
+                    observations: document.getElementById('observations').value,
+                    selectedRiskLevel: selectedRiskLevel,
+                    photos: photos,
+                    areaPhoto: areaPhoto,
+                    checklistMemory: currentChecklistState,
+                    timestamp: new Date().toISOString()
+                };
+                
+                localStorage.setItem('formState', JSON.stringify(formState));
+                
+                updateBackupIndicator();
+            } catch (error) {
+                console.error('Erro ao salvar estado do formulário:', error);
+            }
+        }
+        
+        function applyChecklistStateToDOM() {
+            document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
+                input.checked = false;
+            });
+
+            if (checklistMemory && typeof checklistMemory === 'object') {
+                Object.keys(checklistMemory).forEach(tabId => {
+                    if (checklistMemory[tabId] && typeof checklistMemory[tabId] === 'object') {
+                        Object.keys(checklistMemory[tabId]).forEach(key => {
+                            const value = checklistMemory[tabId][key];
+                            const input = document.querySelector(`input[name="${key}"][value="${value}"]`);
+                            if (input) {
+                                input.checked = true;
+                            }
+                        });
+                    }
+                });
             }
         }
         
@@ -2932,23 +3698,17 @@
             const timeDiff = new Date() - new Date(state.timestamp);
             const minutesDiff = timeDiff / (1000 * 60);
             
-            // Considera como não salvo se houver mudanças nos últimos 5 minutos
             return minutesDiff < 5 && (state.areaName || state.observations || photos.length > 0);
         }
         
         function startAutoBackup() {
-            // Backup imediato
             performBackup();
-            
-            // Backup periódico
             backupInterval = setInterval(performBackup, BACKUP_INTERVAL);
-            
             console.log('Backup automático iniciado');
         }
         
         function performBackup() {
             try {
-                // Cria backup completo
                 const backup = {
                     inspections: inspections,
                     formState: localStorage.getItem('formState'),
@@ -2981,8 +3741,13 @@
             }
         }
         
-        // Função para exportar JSON
         function exportJSON() {
+            const exportBtn = event.target;
+            const originalText = exportBtn.innerHTML;
+
+            exportBtn.innerHTML = '<span class="loading"></span> Gerando JSON...';
+            exportBtn.disabled = true;
+
             try {
                 const data = {
                     inspections: inspections,
@@ -2994,7 +3759,8 @@
                     }
                 };
                 
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const jsonString = JSON.stringify(data);
+                const blob = new Blob([jsonString], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -3008,299 +3774,188 @@
             } catch (error) {
                 console.error('Erro ao exportar JSON:', error);
                 showToast('Erro ao exportar dados', 'error');
+            } finally {
+                exportBtn.innerHTML = originalText;
+                exportBtn.disabled = false;
             }
         }
         
-        // Função para importar JSON
         function importJSON(event) {
             const file = event.target.files[0];
             if (!file) return;
             
+            if (!file.name.toLowerCase().endsWith('.json')) {
+                showToast('Por favor, selecione um arquivo JSON válido', 'error');
+                event.target.value = '';
+                return;
+            }
+            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    const data = JSON.parse(e.target.result);
+                    const content = e.target.result;
                     
-                    // Validação básica
-                    if (!data.inspections || !Array.isArray(data.inspections)) {
-                        throw new Error('Arquivo JSON inválido');
+                    let data;
+                    try {
+                        data = JSON.parse(content);
+                    } catch (parseError) {
+                        console.error('Erro ao fazer parse do JSON:', parseError);
+                        showToast('Arquivo JSON inválido ou mal formatado', 'error');
+                        event.target.value = '';
+                        return;
                     }
                     
-                    // Confirmação antes de substituir
-                    if (inspections.length > 0) {
-                        if (!confirm('Isso substituirá todas as inspeções atuais. Deseja continuar?')) {
+                    let inspectionsToImport = [];
+                    
+                    if (data.inspections && Array.isArray(data.inspections)) {
+                        inspectionsToImport = data.inspections;
+                    } else if (Array.isArray(data)) {
+                        inspectionsToImport = data;
+                    } else {
+                        showToast('Formato de arquivo JSON não reconhecido. O arquivo deve conter um array de inspeções ou um objeto com a propriedade "inspections"', 'error');
+                        event.target.value = '';
+                        return;
+                    }
+                    
+                    if (inspectionsToImport.length === 0) {
+                        showToast('O arquivo não contém nenhuma inspeção para importar', 'error');
+                        event.target.value = '';
+                        return;
+                    }
+                    
+                    for (let i = 0; i < inspectionsToImport.length; i++) {
+                        const inspection = inspectionsToImport[i];
+                        if (!inspection.id || !inspection.areaName || !inspection.date) {
+                            showToast(`A inspeção ${i+1} está incompleta ou em formato inválido`, 'error');
+                            event.target.value = '';
                             return;
                         }
                     }
                     
-                    // Importa os dados
-                    inspections = data.inspections;
-                    
-                    // Salva no localStorage
-                    localStorage.setItem('inspections', JSON.stringify(inspections));
-                    
-                    // Atualiza a interface
-                    renderInspections();
-                    updateStats();
-                    
-                    showToast('Dados importados com sucesso!', 'success');
-                    
-                    // Limpa o input
-                    event.target.value = '';
+                    const confirmMessage = inspections.length > 0 
+                        ? `Isso substituirá todas as ${inspections.length} inspeções atuais por ${inspectionsToImport.length} novas inspeções. Deseja continuar?`
+                        : `Isso importará ${inspectionsToImport.length} inspeções. Deseja continuar?`;
+                        
+                    if (confirm(confirmMessage)) {
+                        inspections = inspectionsToImport;
+                        
+                        localStorage.setItem('inspections', JSON.stringify(inspections));
+                        
+                        renderInspections();
+                        updateStats();
+                        
+                        // Sincronizar com a rede se estiver ativo
+                        if (networkConfig.syncEnabled) {
+                            syncData();
+                        }
+                        
+                        showToast(`${inspectionsToImport.length} inspeções importadas com sucesso!`, 'success');
+                        
+                        event.target.value = '';
+                    } else {
+                        event.target.value = '';
+                    }
                     
                 } catch (error) {
                     console.error('Erro ao importar JSON:', error);
                     showToast('Erro ao importar arquivo JSON: ' + error.message, 'error');
+                    event.target.value = '';
                 }
             };
+            
+            reader.onerror = function() {
+                showToast('Erro ao ler o arquivo', 'error');
+                event.target.value = '';
+            };
+            
             reader.readAsText(file);
         }
         
-        // Função para alternar entre as abas do checklist
+        // Continuar com as outras funções...
+        // [O resto das funções do seu código original continuam aqui]
+        
         function switchChecklistTab(tabId, tabElement) {
-            // Impede comportamento padrão
             event.preventDefault();
             event.stopPropagation();
             
-            // Esconde todos os conteúdos
             document.querySelectorAll('.checklist-content').forEach(content => {
                 content.classList.remove('active');
             });
             
-            // Remove a classe active de todas as abas
             document.querySelectorAll('.checklist-tab').forEach(tab => {
                 tab.classList.remove('active');
             });
             
-            // Mostra o conteúdo selecionado
             const targetContent = document.getElementById(tabId);
             if (targetContent) {
                 targetContent.classList.add('active');
             }
             
-            // Adiciona a classe active à aba clicada
             if (tabElement) {
                 tabElement.classList.add('active');
             }
             
-            // Atualiza o resumo do checklist
             updateChecklistSummary();
         }
         
-        // Função para atualizar o resumo do checklist
-     function updateChecklistSummary() {
-    // Calcula o resumo com base nos dados da memória (checklistMemory)
-    // Isso é mais confiável do que consultar o DOM
-    let totalQuestions = 0;
-    let answeredQuestions = 0;
-    let yesAnswers = 0;
-    let noAnswers = 0;
+        function updateChecklistSummary() {
+            let totalQuestions = 0;
+            let answeredQuestions = 0;
+            let yesAnswers = 0;
+            let noAnswers = 0;
 
-    if (checklistMemory && typeof checklistMemory === 'object') {
-        Object.keys(checklistMemory).forEach(tabId => {
-            if (checklistMemory[tabId] && typeof checklistMemory[tabId] === 'object') {
-                Object.keys(checklistMemory[tabId]).forEach(key => {
-                    totalQuestions++;
-                    const value = checklistMemory[tabId][key];
-                    if (value !== 'na') { // Considera 'na' como não respondido para a contagem
-                        answeredQuestions++;
-                    }
-                    if (value === 'sim') {
-                        yesAnswers++;
-                    } else if (value === 'nao') {
-                        noAnswers++;
-                    }
-                });
-            }
-        });
-    }
-    
-    document.getElementById('totalQuestions').textContent = totalQuestions;
-    document.getElementById('answeredQuestions').textContent = answeredQuestions;
-    document.getElementById('yesAnswers').textContent = yesAnswers;
-    document.getElementById('noAnswers').textContent = noAnswers;
-    
-    // Calcula a pontuação
-    let score = 0;
-    if (answeredQuestions > 0) {
-        score = Math.round((yesAnswers / answeredQuestions) * 100);
-    }
-    
-    const scoreElement = document.getElementById('summaryScore');
-    scoreElement.textContent = `Pontuação: ${score}%`;
-    
-    // Define a cor com base na pontuação
-    scoreElement.className = 'summary-score';
-    if (score >= 80) {
-        scoreElement.classList.add('score-good');
-    } else if (score >= 50) {
-        scoreElement.classList.add('score-medium');
-    } else {
-        scoreElement.classList.add('score-bad');
-    }
-}
-// ... (código da função updateChecklistSummary()) ...
-    
-
-// =================================================================
-// ADICIONE A NOVA FUNÇÃO AQUI, LOGO ABAIXO
-// =================================================================
-
-function applyChecklistStateToDOM() {
-    // Limpa todos os checkboxes antes de aplicar o estado
-    document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
-        input.checked = false;
-    });
-
-    // Percorre todos os dados do checklist e marca os rádios correspondentes
-    if (checklistMemory && typeof checklistMemory === 'object') {
-        Object.keys(checklistMemory).forEach(tabId => {
-            if (checklistMemory[tabId] && typeof checklistMemory[tabId] === 'object') {
-                Object.keys(checklistMemory[tabId]).forEach(key => {
-                    const value = checklistMemory[tabId][key];
-                    const input = document.querySelector(`input[name="${key}"][value="${value}"]`);
-                    if (input) {
-                        input.checked = true;
+            if (checklistMemory && typeof checklistMemory === 'object') {
+                Object.keys(checklistMemory).forEach(tabId => {
+                    if (checklistMemory[tabId] && typeof checklistMemory[tabId] === 'object') {
+                        Object.keys(checklistMemory[tabId]).forEach(key => {
+                            totalQuestions++;
+                            const value = checklistMemory[tabId][key];
+                            if (value !== 'na') {
+                                answeredQuestions++;
+                            }
+                            if (value === 'sim') {
+                                yesAnswers++;
+                            } else if (value === 'nao') {
+                                noAnswers++;
+                            }
+                        });
                     }
                 });
             }
-        });
-    }
-}
-
-
-// ... (o resto do seu código JavaScript continua aqui) ...
-
-function getRiskLabel(level) {
-    // ...
-}
-        // Função para coletar dados do checklist
-        function collectChecklistData() {
-    const data = {};
-    
-    // Coleta todos os dados ativos do formulário
-    document.querySelectorAll('.checklist-question input[type="radio"]:checked').forEach(input => {
-        data[input.name] = input.value;
-    });
-    
-    // Também coleta dados da memória
-    Object.keys(checklistMemory).forEach(tabId => {
-        Object.keys(checklistMemory[tabId]).forEach(key => {
-            data[key] = checklistMemory[tabId][key];
-        });
-    });
-    
-    return data;
-}
-        
-        // Função principal de salvamento de inspeção
-    function saveInspection(event) {
-    // BLOQUEIO FINAL E DEFINITIVO
-    // Se o evento não for nulo e não for um 'submit', cancela a execução.
-    // Isso impede que cliques em outros botões acionem o salvamento.
-    if (event && event.type !== 'submit') {
-        console.log("Salvamento bloqueado: o evento não é um 'submit'.");
-        event.preventDefault(); // Previne o comportamento padrão
-        return;
-    }
-
-    // BLOQUEIO EXTRA: Se não estamos no modo de edição e o evento não veio do botão de submit, não faz nada.
-    if (!currentEditingInspectionId && (!event || event.target.type !== 'submit')) {
-        console.log("Tentativa de salvamento bloqueada: evento não é de submit.");
-        return;
-    }
-
-    console.log('Iniciando salvamento da inspeção...');
-    
-    // Validação dos campos obrigatórios
-    const areaName = document.getElementById('areaName').value.trim();
-    const inspectionDate = document.getElementById('inspectionDate').value;
-    const deadlineDate = document.getElementById('deadlineDate').value;
-    
-    if (!areaName) {
-        showToast('Por favor, preencha o nome da área', 'error');
-        return;
-    }
-    
-    if (!inspectionDate) {
-        showToast('Por favor, selecione a data da inspeção', 'error');
-        return;
-    }
-    
-    if (!deadlineDate) {
-        showToast('Por favor, defina o prazo para conclusão', 'error');
-        return;
-    }
-    
-    if (!selectedRiskLevel) {
-        showToast('Por favor, selecione um nível de risco geral', 'error');
-        return;
-    }
-
-    if (photos.length === 0) {
-        showToast('Por favor, adicione pelo menos uma foto', 'error');
-        return;
-    }
-    
-    // Verifica se há foto da área
-    const areaPhotoGallery = document.getElementById('areaPhotoGallery');
-    const areaPhoto = areaPhotoGallery.querySelector('img') ? 
-        areaPhotoGallery.querySelector('img').src : null;
-        
-    // Coleta os dados do checklist
-    const finalChecklistData = collectChecklistData();
-    console.log('Dados finais do checklist coletados:', finalChecklistData);
-    
-    // Verifica se estamos editando ou criando uma nova inspeção
-    if (currentEditingInspectionId) {
-        // Atualiza inspeção existente
-        updateInspection(currentEditingInspectionId);
-    } else {
-        // Cria nova inspeção
-        const inspection = {
-            id: Date.now(),
-            areaName: areaName,
-            areaPhoto: areaPhoto,
-            date: inspectionDate,
-            deadlineDate: deadlineDate,
-            location: document.getElementById('location').value,
-            riskLevel: selectedRiskLevel,
-            observations: document.getElementById('observations').value,
-            photos: photos,
-            checklistData: finalChecklistData,
-            status: calculateInspectionStatus(photos),
-            completionPercentage: calculateCompletionPercentage(photos),
-            timestamp: new Date().toISOString()
-        };
-        
-        console.log('Nova inspeção criada:', inspection);
-        
-        // Adiciona a inspeção ao início da lista
-        inspections.unshift(inspection);
-        
-        // Salva no localStorage
-        if (saveInspections()) {
-            // Exibe mensagem de sucesso
-            showToast('Inspeção salva com sucesso!', 'success');
             
-            // Limpa o formulário
-            resetForm();
+            document.getElementById('totalQuestions').textContent = totalQuestions;
+            document.getElementById('answeredQuestions').textContent = answeredQuestions;
+            document.getElementById('yesAnswers').textContent = yesAnswers;
+            document.getElementById('noAnswers').textContent = noAnswers;
             
-            // Atualiza a lista de inspeções
-            renderInspections();
-            updateStats();
+            let score = 0;
+            if (answeredQuestions > 0) {
+                score = Math.round((yesAnswers / answeredQuestions) * 100);
+            }
             
-            // Força sincronização imediata
-            localStorage.setItem('inspections_last_update', new Date().toISOString());
+            const scoreElement = document.getElementById('summaryScore');
+            scoreElement.textContent = `Pontuação: ${score}%`;
             
-            // Adiciona animação de sucesso
-            document.querySelector('.history-container').classList.add('success-animation');
-            setTimeout(() => {
-                document.querySelector('.history-container').classList.remove('success-animation');
-            }, 500);
+            scoreElement.className = 'summary-score';
+            if (score >= 80) {
+                scoreElement.classList.add('score-good');
+            } else if (score >= 50) {
+                scoreElement.classList.add('score-medium');
+            } else {
+                scoreElement.classList.add('score-bad');
+            }
         }
-    }
-}
+        
+        function collectChecklistData() {
+            const data = {};
+            
+            document.querySelectorAll('.checklist-question input[type="radio"]:checked').forEach(input => {
+                data[input.name] = input.value;
+            });
+            
+            return data;
+        }
+        
         function calculateInspectionStatus(photos) {
             if (!photos || photos.length === 0) return 'pending';
             
@@ -3356,7 +4011,6 @@ function getRiskLabel(level) {
         
         let currentPhotoContext = null;
         function showPhotoSourceOptions() {
-            // Criar modal para escolher fonte da foto
             const modal = document.createElement('div');
             modal.className = 'modal active';
             modal.innerHTML = `
@@ -3400,87 +4054,130 @@ function getRiskLabel(level) {
             document.querySelector('.modal.active').remove();
         }
 
-       function handlePhotoSelection(e) {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-        let photosAdded = 0;
-        
-        Array.from(files).forEach(file => {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const photo = {
-                    id: Date.now() + Math.random(),
-                    src: event.target.result,
-                    riskLevel: null,
-                    description: '',
-                    deadlineDate: null,
-                    resolved: false,
-                    resolutionText: '',
-                    resolutionPhotos: [],
-                    annotations: []
+        function compressImage(file, maxWidth = 800, quality = 0.5) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+
+                        let { width, height } = img;
+                        if (width > maxWidth) {
+                            height = (maxWidth / width) * height;
+                            width = maxWidth;
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                    resolve(reader.result);
+                                };
+                                reader.readAsDataURL(blob);
+                            } else {
+                                reject(new Error('Falha ao comprimir a imagem.'));
+                            }
+                        }, 'image/jpeg', quality);
+                    };
+                    img.onerror = () => reject(new Error('Falha ao carregar a imagem.'));
+                    img.src = event.target.result;
                 };
-                photos.push(photo);
-                photosAdded++;
+                reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function handlePhotoSelection(e) {
+            const files = e.target.files;
+            if (files && files.length > 0) {
+                let photosAdded = 0;
                 
-                if (photosAdded === files.length) {
+                for (const file of files) {
+                    try {
+                        const compressedImageSrc = await compressImage(file);
+                        
+                        const photo = {
+                            id: Date.now() + Math.random(),
+                            src: compressedImageSrc,
+                            riskLevel: null,
+                            description: '',
+                            deadlineDate: null,
+                            resolved: false,
+                            resolutionText: '',
+                            resolutionPhotos: [],
+                            annotations: []
+                        };
+                        photos.push(photo);
+                        photosAdded++;
+                        
+                    } catch (error) {
+                        console.error('Erro ao processar a foto:', error);
+                        showToast(`Não foi possível adicionar a foto "${file.name}".`, 'error');
+                    }
+                }
+                
+                if (photosAdded > 0) {
                     renderPhotoGallery();
-                    showToast(`${photosAdded} fotos adicionadas com sucesso!`, 'success');
-                    // Salva o estado para que as fotos não se percam
+                    showToast(`${photosAdded} fotos adicionadas e otimizadas com sucesso!`, 'success');
                     saveFormState();
                 }
-            };
-            reader.readAsDataURL(file);
-        });
-    }
-}
+            }
+        }
+        
         function closePhotoSourceModal() {
             document.getElementById('photoSourceModal').classList.remove('active');
         }
         
-       function addAreaPhoto() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
-    input.multiple = true;
-    
-    input.onchange = function(e) {
-        const files = e.target.files;
-        if (files && files.length > 0) {
-            let galleryHTML = '';
+        async function addAreaPhoto() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.capture = 'environment';
+            input.multiple = true;
             
-            Array.from(files).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    galleryHTML += `
-                        <div class="photo-item">
-                            <img src="${event.target.result}" alt="Foto da Área">
-                            <div class="photo-actions">
-                                <button class="photo-action-btn" onclick="deleteAreaPhoto(event, this)">
-                                    🗑️
-                                </button>
-                            </div>
+            input.onchange = async function(e) {
+                const files = e.target.files;
+                if (files && files.length > 0) {
+                    let galleryHTML = '';
+                    
+                    for (const file of files) {
+                        try {
+                            const compressedImageSrc = await compressImage(file);
+                            galleryHTML += `
+                                <div class="photo-item">
+                                    <img src="${compressedImageSrc}" alt="Foto da Área">
+                                    <div class="photo-actions">
+                                        <button class="photo-action-btn" onclick="deleteAreaPhoto(event, this)">
+                                            🗑️
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        } catch (error) {
+                            console.error('Erro ao processar a foto da área:', error);
+                            showToast(`Não foi possível adicionar a foto da área "${file.name}".`, 'error');
+                        }
+                    }
+                    
+                    document.getElementById('areaPhotoGallery').innerHTML = galleryHTML + `
+                        <div class="add-photo-btn" onclick="addAreaPhoto()">
+                            <span>📷</span>
+                            <small>Adicionar mais fotos</small>
                         </div>
                     `;
-                    
-                    // Quando todas as fotos forem lidas, atualiza o HTML e salva o estado
-                    if (galleryHTML.split('<div class="photo-item">').length - 1 === files.length) {
-                        document.getElementById('areaPhotoGallery').innerHTML = galleryHTML + `
-                            <div class="add-photo-btn" onclick="addAreaPhoto()">
-                                <span>📷</span>
-                                <small>Adicionar mais fotos</small>
-                            </div>
-                        `;
-                        // Salva o estado para que a foto não se perca
-                        saveFormState();
-                    }
-                };
-                reader.readAsDataURL(file);
-            });
+                    saveFormState();
+                }
+            };
+            input.click();
         }
-    };
-    input.click();
-}
+        
         function deleteAreaPhoto(event, element) {
             event.stopPropagation();
             const photoItem = element.closest('.photo-item');
@@ -3488,290 +4185,53 @@ function getRiskLabel(level) {
             saveFormState();
         }
         
-    function renderPhotoGallery() {
-    const gallery = document.getElementById('photoGallery');
-    
-    gallery.innerHTML = photos.map((photo, index) => `
-        <div class="photo-item">
-            <img src="${photo.src}" alt="Foto ${index + 1}" onclick="viewPhoto(${index})">
-            ${photo.riskLevel ? `
-                <span class="photo-risk-badge ${photo.riskLevel}">
-                    ${getRiskLabel(photo.riskLevel)}
-                </span>
-            ` : ''}
-            ${photo.resolved ? `
-                <span class="photo-risk-badge" style="background: var(--success); left: 5px; right: auto;">
-                    ✅ Resolvido
-                </span>
-            ` : ''}
-            <div class="photo-actions">
-                <button type="button" class="photo-action-btn" onclick="editPhoto(event, ${index})">
-                    ✏️ Editar
-                </button>
-                <button type="button" class="photo-action-btn" onclick="setPhotoRiskLevel(event, ${index})">
-                    ⚠️ Risco
-                </button>
-                <button type="button" class="photo-action-btn" onclick="resolvePhoto(event, ${index})">
-                    🔧 Resolver
-                </button>
-                <button type="button" class="photo-action-btn" onclick="deletePhoto(event, ${index})">
-                    🗑️
-                </button>
-            </div>
-        </div>
-    `).join('') + `
-        <div class="add-photo-btn" onclick="showPhotoSourceOptions()">
-            <span>📷</span>
-            <small>Adicionar Foto</small>
-        </div>
-    `;
-}
-    function editPhoto(event, index) {
-    console.log("FUNÇÃO editPhoto() CHAMADA!"); // Linha de depuração
-    event.stopPropagation();
-    
-    // A linha 'currentEditingInspectionId = id;' foi removida porque 'id' não existe aqui.
-    // O ID da inspeção já está na variável global 'currentEditingInspectionId'.
-    
-    currentEditingPhoto = photos[index];
-    currentPhotoIndex = index;
-    openPhotoEditor();
-}
-
-        function openPhotoEditor() {
-            const modal = document.getElementById('photoEditorModal');
-            const canvas = document.getElementById('editorCanvas');
-            const ctx = canvas.getContext('2d');
+        function renderPhotoGallery() {
+            const gallery = document.getElementById('photoGallery');
             
-            const img = new Image();
-            img.onload = function() {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
-                
-                if (currentEditingPhoto.annotations) {
-                    currentEditingPhoto.annotations.forEach(ann => drawAnnotation(ctx, ann));
-                }
-            };
-            img.src = currentEditingPhoto.src;
-            
-            modal.classList.add('active');
-            setupCanvasEvents();
+            gallery.innerHTML = photos.map((photo, index) => `
+                <div class="photo-item">
+                    <img src="${photo.src}" alt="Foto ${index + 1}" onclick="viewPhoto(${index})">
+                    ${photo.riskLevel ? `
+                        <span class="photo-risk-badge ${photo.riskLevel}">
+                            ${getRiskLabel(photo.riskLevel)}
+                        </span>
+                    ` : ''}
+                    ${photo.resolved ? `
+                        <span class="photo-risk-badge" style="background: var(--success); left: 5px; right: auto;">
+                            ✅ Resolvido
+                        </span>
+                    ` : ''}
+                    <div class="photo-actions">
+                        <button class="photo-action-btn" onclick="editPhoto(event, ${index})">
+                            ✏️ Editar
+                        </button>
+                        <button class="photo-action-btn" onclick="setPhotoRiskLevel(event, ${index})">
+                            ⚠️ Risco
+                        </button>
+                        <button class="photo-action-btn" onclick="resolvePhoto(event, ${index})">
+                            🔧 Resolver
+                        </button>
+                        <button class="photo-action-btn" onclick="deletePhoto(event, ${index})">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            `).join('') + `
+                <div class="add-photo-btn" onclick="showPhotoSourceOptions()">
+                    <span>📷</span>
+                    <small>Adicionar Foto</small>
+                </div>
+            `;
         }
         
-        function setupCanvasEvents() {
-            const canvas = document.getElementById('editorCanvas');
-            const ctx = canvas.getContext('2d');
-            
-            function redrawCanvas() {
-                const img = new Image();
-                img.onload = function() {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0);
-                    
-                    if (currentEditingPhoto.annotations) {
-                        currentEditingPhoto.annotations.forEach(ann => drawAnnotation(ctx, ann));
-                    }
-                };
-                img.src = currentEditingPhoto.src;
-            }
-            
-            let currentAnnotation = null;
-            
-            canvas.onmousedown = function(e) {
-                isDrawing = true;
-                const rect = canvas.getBoundingClientRect();
-                startX = (e.clientX - rect.left) * (canvas.width / rect.width);
-                startY = (e.clientY - rect.top) * (canvas.height / rect.height);
-                
-                currentAnnotation = {
-                    type: editorTool,
-                    startX: startX,
-                    startY: startY,
-                    endX: startX,
-                    endY: startY,
-                    color: document.getElementById('colorPicker').value,
-                    text: editorTool === 'text' ? 'Texto' : null
-                };
-            };
-            
-            canvas.onmousemove = function(e) {
-                if (!isDrawing) return;
-                
-                const rect = canvas.getBoundingClientRect();
-                const currentX = (e.clientX - rect.left) * (canvas.width / rect.width);
-                const currentY = (e.clientY - rect.top) * (canvas.height / rect.height);
-                
-                currentAnnotation.endX = currentX;
-                currentAnnotation.endY = currentY;
-                
-                redrawCanvas();
-                drawAnnotation(ctx, currentAnnotation);
-            };
-            
-            canvas.onmouseup = function(e) {
-                if (!isDrawing || !currentAnnotation) return;
-                isDrawing = false;
-                
-                const rect = canvas.getBoundingClientRect();
-                const endX = (e.clientX - rect.left) * (canvas.width / rect.width);
-                const endY = (e.clientY - rect.top) * (canvas.height / rect.height);
-                
-                currentAnnotation.endX = endX;
-                currentAnnotation.endY = endY;
-                
-                if (editorTool === 'text') {
-                    const text = prompt("Digite o texto:", "Texto");
-                    if (text !== null) {
-                        currentAnnotation.text = text;
-                    } else {
-                        redrawCanvas();
-                        return;
-                    }
-                }
-                
-                if (!currentEditingPhoto.annotations) {
-                    currentEditingPhoto.annotations = [];
-                }
-                currentEditingPhoto.annotations.push(currentAnnotation);
-                
-                redrawCanvas();
-                currentAnnotation = null;
-            };
-        }
-        
-        function drawAnnotation(ctx, annotation) {
-            ctx.strokeStyle = annotation.color;
-            ctx.lineWidth = 3;
-            ctx.fillStyle = annotation.color;
-            ctx.font = '16px Arial';
-            
-            switch(annotation.type) {
-                case 'arrow':
-                    drawArrow(ctx, annotation.startX, annotation.startY, annotation.endX, annotation.endY);
-                    break;
-                case 'circle': {
-                    const radiusX = Math.abs(annotation.endX - annotation.startX);
-                    const radiusY = Math.abs(annotation.endY - annotation.startY);
-                    ctx.beginPath();
-                    ctx.ellipse(
-                        annotation.startX, annotation.startY,
-                        radiusX, radiusY,
-                        0, 0, 2 * Math.PI
-                    );
-                    ctx.stroke();
-                    break;
-                }
-                case 'rectangle':
-                    ctx.strokeRect(
-                        annotation.startX, annotation.startY,
-                        annotation.endX - annotation.startX,
-                        annotation.endY - annotation.startY
-                    );
-                    break;
-                case 'text':
-                    if (annotation.text) {
-                        ctx.fillText(
-                            annotation.text,
-                            annotation.startX,
-                            annotation.startY
-                        );
-                    }
-                    break;
+        function deletePhoto(event, index) {
+            event.stopPropagation();
+            if (confirm('Deseja excluir esta foto?')) {
+                photos.splice(index, 1);
+                renderPhotoGallery();
+                showToast('Foto excluída', 'success');
             }
         }
-        
-        function drawArrow(ctx, fromX, fromY, toX, toY) {
-            const headLength = 15;
-            const angle = Math.atan2(toY - fromY, toX - fromX);
-            
-            ctx.beginPath();
-            ctx.moveTo(fromX, fromY);
-            ctx.lineTo(toX, toY);
-            ctx.stroke();
-            
-            ctx.beginPath();
-            ctx.moveTo(toX, toY);
-            ctx.lineTo(toX - headLength * Math.cos(angle - Math.PI / 6), toY - headLength * Math.sin(angle - Math.PI / 6));
-            ctx.moveTo(toX, toY);
-            ctx.lineTo(toX - headLength * Math.cos(angle + Math.PI / 6), toY - headLength * Math.sin(angle + Math.PI / 6));
-            ctx.stroke();
-        }
-        
-        function setEditorTool(tool) {
-            editorTool = tool;
-            document.querySelectorAll('.editor-tool').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.getElementById(tool + 'Tool').classList.add('active');
-            
-            const canvas = document.getElementById('editorCanvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
-            
-            img.onload = function() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);
-                
-                if (currentEditingPhoto.annotations) {
-                    currentEditingPhoto.annotations.forEach(ann => drawAnnotation(ctx, ann));
-                }
-            };
-            img.src = currentEditingPhoto.src;
-        }
-        
-        function clearAnnotations() {
-            if (currentEditingPhoto.annotations && currentEditingPhoto.annotations.length > 0) {
-                currentEditingPhoto.annotations.pop();
-                
-                const canvas = document.getElementById('editorCanvas');
-                const ctx = canvas.getContext('2d');
-                const img = new Image();
-                
-                img.onload = function() {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0);
-                    
-                    currentEditingPhoto.annotations.forEach(ann => drawAnnotation(ctx, ann));
-                    
-                    const tool = editorTool;
-                    editorTool = null;
-                    setEditorTool(tool);
-                };
-                img.src = currentEditingPhoto.src;
-                
-                showToast('Última anotação removida', 'success');
-            } else {
-                showToast('Nenhuma anotação para remover', 'info');
-            }
-        }
-        
-        function saveEditedPhoto() {
-            const canvas = document.getElementById('editorCanvas');
-            const editedImageData = canvas.toDataURL('image/png');
-            
-            photos[currentPhotoIndex].src = editedImageData;
-            photos[currentPhotoIndex].annotations = currentEditingPhoto.annotations;
-            
-            renderPhotoGallery();
-            closePhotoEditor();
-            saveFormState();
-            showToast('Foto editada com sucesso!', 'success');
-        }
-        
-        function closePhotoEditor() {
-            document.getElementById('photoEditorModal').classList.remove('active');
-        }
-
-       function deletePhoto(event, index) {
-    event.stopPropagation();
-    if (confirm('Deseja excluir esta foto?')) {
-        // *** IMPORTANTE: Modifica APENAS a variável 'photos' em memória ***
-        photos.splice(index, 1);
-        renderPhotoGallery();
-        showToast('Foto excluída', 'success'); // Mensagem de sucesso, mas sem salvar a inspeção
-    }
-}
         
         function toggleDeadlineField() {
             const deadlineField = document.getElementById('photoDeadline');
@@ -3781,27 +4241,28 @@ function getRiskLabel(level) {
             }
         }
 
-     function setPhotoRiskLevel(event, index) {
-    event.stopPropagation();
-    currentPhotoIndex = index;
-    currentPhotoRisk = photos[index].riskLevel;
-    document.getElementById('photoDescription').value = photos[index].description || '';
-    
-    if (photos[index].deadlineDate) {
-        document.getElementById('hasPhotoDeadline').checked = true;
-        document.getElementById('photoDeadline').style.display = 'block';
-        document.getElementById('photoDeadline').valueAsDate = new Date(photos[index].deadlineDate);
-    }
-    
-    document.querySelectorAll('#photoRiskModal .risk-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    if (photos[index].riskLevel) {
-        document.querySelector(`#photoRiskModal .risk-btn.${photos[index].riskLevel}`).classList.add('active');
-    }
-    
-    openPhotoRiskModal();
-}
+        function setPhotoRiskLevel(event, index) {
+            event.stopPropagation();
+            currentPhotoIndex = index;
+            currentPhotoRisk = photos[index].riskLevel;
+            document.getElementById('photoDescription').value = photos[index].description || '';
+            
+            if (photos[index].deadlineDate) {
+                document.getElementById('hasPhotoDeadline').checked = true;
+                document.getElementById('photoDeadline').style.display = 'block';
+                document.getElementById('photoDeadline').valueAsDate = new Date(photos[index].deadlineDate);
+            }
+            
+            document.querySelectorAll('#photoRiskModal .risk-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (photos[index].riskLevel) {
+                document.querySelector(`#photoRiskModal .risk-btn.${photos[index].riskLevel}`).classList.add('active');
+            }
+            
+            openPhotoRiskModal();
+        }
+        
         function openPhotoRiskModal() {
             document.getElementById('photoRiskModal').classList.add('active');
         }
@@ -3819,113 +4280,117 @@ function getRiskLabel(level) {
         }
         
         function savePhotoRisk() {
-    if (!currentPhotoRisk) {
-        showToast('Selecione um nível de risco', 'error');
-        return;
-    }
-    
-    // *** IMPORTANTE: Atualiza APENAS a variável 'photos' em memória ***
-    photos[currentPhotoIndex].riskLevel = currentPhotoRisk;
-    photos[currentPhotoIndex].description = document.getElementById('photoDescription').value;
-    photos[currentPhotoIndex].deadlineDate = document.getElementById('hasPhotoDeadline').checked ? 
-        document.getElementById('photoDeadline').value : null;
-        
-    renderPhotoGallery();
-    closePhotoRiskModal();
-    showToast('Risco da foto definido!', 'success'); // Mensagem de sucesso, mas sem salvar a inspeção
-}
-      function resolvePhoto(event, index) {
-    console.log("FUNÇÃO resolvePhoto() CHAMADA!"); // Linha de depuração
-    event.stopPropagation();
-    currentPhotoIndex = index;
-    currentPhotoId = photos[index].id;
-    
-    // CRÍTICO: Garante que o ID da inspeção atual esteja correto
-    if (currentEditingInspectionId) {
-        currentInspectionId = currentEditingInspectionId;
-    }
-    
-    openPhotoResolutionModal();
-}
-       function openPhotoResolutionModal() {
-    const modal = document.getElementById('photoResolutionModal');
-    const modalBody = document.getElementById('resolutionModalBody');
-    
-    // *** IMPORTANTE: Pega a foto da variável 'photos' em memória ***
-    const photo = photos[currentPhotoIndex];
-    
-    modalBody.innerHTML = `
-        <div class="form-group">
-            <label>Foto</label>
-            <img src="${photo.src}" style="max-width: 100%; border-radius: 8px;">
-        </div>
-        ${photo.riskLevel ? `
-            <div class="form-group">
-                <label>Nível de Risco</label>
-                <span class="risk-badge ${photo.riskLevel}">
-                    ${getRiskLabel(photo.riskLevel)}
-                </span>
-            </div>
-        ` : ''}
-        ${photo.deadlineDate ? `
-            <div class="form-group">
-                <label>Data Limite para Resolução</label>
-                <p>${formatDate(photo.deadlineDate)}</p>
-            </div>
-        ` : ''}
-        ${photo.description ? `
-            <div class="form-group">
-                <label>Descrição</label>
-                <p>${photo.description}</p>
-            </div>
-        ` : ''}
-        
-        <div class="resolution-section">
-            <div class="resolution-header">
-                <h4>Resolução</h4>
-                <span class="resolution-status ${photo.resolved ? 'resolved' : 'pending'}">
-                    ${photo.resolved ? 'Resolvido' : 'Pendente'}
-                </span>
-            </div>
+            if (!currentPhotoRisk) {
+                showToast('Selecione um nível de risco', 'error');
+                return;
+            }
             
-            <div class="resolution-form ${photo.resolved ? '' : 'active'}">
-                <div class="form-group">
-                    <label for="resolutionText">Descrição da Resolução</label>
-                    <textarea id="resolutionText" placeholder="Descreva como esta questão foi resolvida...">${photo.resolutionText || ''}</textarea>
-                </div>
+            photos[currentPhotoIndex].riskLevel = currentPhotoRisk;
+            photos[currentPhotoIndex].description = document.getElementById('photoDescription').value;
+            photos[currentPhotoIndex].deadlineDate = document.getElementById('hasPhotoDeadline').checked ? 
+                document.getElementById('photoDeadline').value : null;
                 
+            renderPhotoGallery();
+            closePhotoRiskModal();
+            
+            if (!currentEditingInspectionId) {
+                saveFormState();
+            }
+            
+            showToast('Risco da foto definido!', 'success');
+        }
+
+        function resolvePhoto(event, index) {
+            event.stopPropagation();
+            currentPhotoIndex = index;
+            currentPhotoId = photos[index].id;
+            
+            if (currentEditingInspectionId) {
+                currentInspectionId = currentEditingInspectionId;
+            }
+            
+            openPhotoResolutionModal();
+        }
+        
+        function openPhotoResolutionModal() {
+            const modal = document.getElementById('photoResolutionModal');
+            const modalBody = document.getElementById('resolutionModalBody');
+            
+            const photo = photos[currentPhotoIndex];
+            
+            modalBody.innerHTML = `
                 <div class="form-group">
-                    <label>Fotos da Resolução</label>
-                    <div class="resolution-photos" id="resolutionPhotos">
-                        ${photo.resolutionPhotos ? photo.resolutionPhotos.map((resPhoto, index) => `
-                            <div class="resolution-photo">
-                                <img src="${resPhoto}" alt="Foto de resolução ${index + 1}">
-                                <button class="delete-btn" style="position: absolute; top: 5px; right: 5px; opacity: 1;" onclick="deleteResolutionPhoto(${index})">×</button>
+                    <label>Foto</label>
+                    <img src="${photo.src}" style="max-width: 100%; border-radius: 8px;">
+                </div>
+                ${photo.riskLevel ? `
+                    <div class="form-group">
+                        <label>Nível de Risco</label>
+                        <span class="risk-badge ${photo.riskLevel}">
+                            ${getRiskLabel(photo.riskLevel)}
+                        </span>
+                    </div>
+                ` : ''}
+                ${photo.deadlineDate ? `
+                    <div class="form-group">
+                        <label>Data Limite para Resolução</label>
+                        <p>${formatDate(photo.deadlineDate)}</p>
+                    </div>
+                ` : ''}
+                ${photo.description ? `
+                    <div class="form-group">
+                        <label>Descrição</label>
+                        <p>${photo.description}</p>
+                    </div>
+                ` : ''}
+                
+                <div class="resolution-section">
+                    <div class="resolution-header">
+                        <h4>Resolução</h4>
+                        <span class="resolution-status ${photo.resolved ? 'resolved' : 'pending'}">
+                            ${photo.resolved ? 'Resolvido' : 'Pendente'}
+                        </span>
+                    </div>
+                    
+                    <div class="resolution-form ${photo.resolved ? '' : 'active'}">
+                        <div class="form-group">
+                            <label for="resolutionText">Descrição da Resolução</label>
+                            <textarea id="resolutionText" placeholder="Descreva como esta questão foi resolvida...">${photo.resolutionText || ''}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Fotos da Resolução</label>
+                            <div class="resolution-photos" id="resolutionPhotos">
+                                ${photo.resolutionPhotos ? photo.resolutionPhotos.map((resPhoto, index) => `
+                                    <div class="resolution-photo">
+                                        <img src="${resPhoto}" alt="Foto de resolução ${index + 1}">
+                                        <button class="delete-btn" style="position: absolute; top: 5px; right: 5px; opacity: 1;" onclick="deleteResolutionPhoto(${index})">×</button>
+                                    </div>
+                                `).join('') : ''}
+                                <div class="add-photo-btn" onclick="addResolutionPhoto()" style="aspect-ratio: 1; height: 120px;">
+                                    <span>📷</span>
+                                    <small>Adicionar Foto</small>
+                                </div>
                             </div>
-                        `).join('') : ''}
-                        <div class="add-photo-btn" onclick="addResolutionPhoto()" style="aspect-ratio: 1; height: 120px;">
-                            <span>📷</span>
-                            <small>Adicionar Foto</small>
+                        </div>
+                        
+                        <div class="btn-group">
+                            ${photo.resolved ? 
+                                `<button class="btn btn-secondary" onclick="markAsUnresolved()">
+                                    🔙 Marcar como Não Resolvido
+                                </button>` : 
+                                `<button class="btn btn-primary" onclick="markAsResolved()">
+                                    ✅ Marcar como Resolvido
+                                </button>`
+                            }
                         </div>
                     </div>
                 </div>
-                
-                <div class="btn-group">
-                    ${photo.resolved ? 
-                        `<button class="btn btn-secondary" onclick="markAsUnresolved()">
-                            🔙 Marcar como Não Resolvido
-                        </button>` : 
-                        `<button class="btn btn-primary" onclick="markAsResolved()">
-                            ✅ Marcar como Resolvido
-                        </button>`
-                    }
-                </div>
-            </div>
-        </div>
-    `;
-    
-    modal.classList.add('active');
-}
+            `;
+            
+            modal.classList.add('active');
+        }
+        
         function closePhotoResolutionModal() {
             document.getElementById('photoResolutionModal').classList.remove('active');
         }
@@ -3963,40 +4428,50 @@ function getRiskLabel(level) {
         }
 
         function markAsResolved() {
-    const resolutionText = document.getElementById('resolutionText').value;
-    
-    if (!resolutionText) {
-        showToast('Adicione uma descrição para a resolução', 'error');
-        return;
-    }
-    
-    if (!photos[currentPhotoIndex].resolutionPhotos || photos[currentPhotoIndex].resolutionPhotos.length === 0) {
-        showToast('Adicione pelo menos uma foto da resolução', 'error');
-        return;
-    }
-    
-    // *** IMPORTANTE: Atualiza APENAS a variável 'photos' em memória ***
-    photos[currentPhotoIndex].resolved = true;
-    photos[currentPhotoIndex].resolutionText = resolutionText;
-    photos[currentPhotoIndex].resolutionDate = new Date().toISOString();
-    
-    renderPhotoGallery();
-    closePhotoResolutionModal();
-    showToast('Foto marcada como resolvida!', 'success'); // Mensagem de sucesso, mas sem salvar a inspeção
-}
-    function markAsUnresolved() {
-    if (confirm('Tem certeza que deseja marcar esta foto como não resolvida?')) {
-        // *** IMPORTANTE: Atualiza APENAS a variável 'photos' em memória ***
-        photos[currentPhotoIndex].resolved = false;
-        photos[currentPhotoIndex].resolutionText = '';
-        photos[currentPhotoIndex].resolutionPhotos = [];
-        photos[currentPhotoIndex].resolutionDate = null;
+            const resolutionText = document.getElementById('resolutionText').value;
+            
+            if (!resolutionText) {
+                showToast('Adicione uma descrição para a resolução', 'error');
+                return;
+            }
+            
+            if (!photos[currentPhotoIndex].resolutionPhotos || photos[currentPhotoIndex].resolutionPhotos.length === 0) {
+                showToast('Adicione pelo menos uma foto da resolução', 'error');
+                return;
+            }
+            
+            photos[currentPhotoIndex].resolved = true;
+            photos[currentPhotoIndex].resolutionText = resolutionText;
+            photos[currentPhotoIndex].resolutionDate = new Date().toISOString();
+            
+            renderPhotoGallery();
+            closePhotoResolutionModal();
+            
+            if (!currentEditingInspectionId) {
+                saveFormState();
+            }
+            
+            showToast('Foto marcada como resolvida!', 'success');
+        }
+
+        function markAsUnresolved() {
+            if (confirm('Tem certeza que deseja marcar esta foto como não resolvida?')) {
+                photos[currentPhotoIndex].resolved = false;
+                photos[currentPhotoIndex].resolutionText = '';
+                photos[currentPhotoIndex].resolutionPhotos = [];
+                photos[currentPhotoIndex].resolutionDate = null;
+                
+                renderPhotoGallery();
+                closePhotoResolutionModal();
+                
+                if (!currentEditingInspectionId) {
+                    saveFormState();
+                }
+                
+                showToast('Foto marcada como não resolvida', 'success');
+            }
+        }
         
-        renderPhotoGallery();
-        closePhotoResolutionModal();
-        showToast('Foto marcada como não resolvida', 'success'); // Mensagem de sucesso, mas sem salvar a inspeção
-    }
-}
         function viewPhoto(index) {
             const photo = photos[index];
             const modal = document.getElementById('inspectionModal');
@@ -4031,7 +4506,7 @@ function getRiskLabel(level) {
                     <div class="resolution-section">
                         <div class="resolution-header">
                             <h4>Resolução</h4>
-                            <span class="resolution-status resolved">Resolvido</span>
+                            <span class="resolution-status resolved">Resolvido em ${formatDate(photo.resolutionDate)}</span>
                         </div>
                         ${photo.resolutionText ? `
                             <div class="form-group">
@@ -4058,46 +4533,45 @@ function getRiskLabel(level) {
             modal.classList.add('active');
         }
         
-     function resetForm() {
-    document.getElementById('inspectionForm').reset();
-    const today = new Date();
-    document.getElementById('inspectionDate').valueAsDate = today;
-    const deadline = new Date(today);
-    deadline.setDate(deadline.getDate() + 30);
-    document.getElementById('deadlineDate').valueAsDate = deadline;
-    selectedRiskLevel = null;
-    photos = [];
-    checklistMemory = {};
-    currentEditingInspectionId = null;
-    
-    document.querySelectorAll('.risk-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    
-    document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
-        input.checked = false;
-    });
-    
-    // Reseta a galeria de fotos da área
-    document.getElementById('areaPhotoGallery').innerHTML = `
-        <div class="add-photo-btn" onclick="addAreaPhoto()">
-            <span>📷</span>
-            <small>Adicionar Foto da Área</small>
-        </div>
-    `;
-    
-    renderPhotoGallery();
-    updateChecklistSummary();
-    
-    const submitBtn = document.getElementById('submitBtn');
-    submitBtn.textContent = '💾 Salvar Inspeção';
-    submitBtn.onclick = null;
-    
-    document.getElementById('formTitle').textContent = '📝 Nova Inspeção';
-    
-    // Limpa o estado do formulário do localStorage
-    localStorage.removeItem('formState');
-}
+        function resetForm() {
+            document.getElementById('inspectionForm').reset();
+            const today = new Date();
+            document.getElementById('inspectionDate').valueAsDate = today;
+            const deadline = new Date(today);
+            deadline.setDate(deadline.getDate() + 30);
+            document.getElementById('deadlineDate').valueAsDate = deadline;
+            selectedRiskLevel = null;
+            photos = [];
+            checklistMemory = {};
+            currentEditingInspectionId = null;
+            
+            document.querySelectorAll('.risk-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
+                input.checked = false;
+            });
+            
+            document.getElementById('areaPhotoGallery').innerHTML = `
+                <div class="add-photo-btn" onclick="addAreaPhoto()">
+                    <span>📷</span>
+                    <small>Adicionar Foto da Área</small>
+                </div>
+            `;
+            
+            renderPhotoGallery();
+            updateChecklistSummary();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.textContent = '💾 Salvar Inspeção';
+            submitBtn.onclick = null;
+            
+            document.getElementById('formTitle').textContent = '📝 Nova Inspeção';
+            
+            localStorage.removeItem('formState');
+        }
+        
         function filterInspections(filter) {
             currentFilter = filter;
             
@@ -4177,6 +4651,12 @@ function getRiskLabel(level) {
                                             <span class="history-detail-label">Checklist:</span>
                                             <span class="history-detail-value">${checklistScore}% de conformidade</span>
                                         </div>
+                                        ${inspection.modifiedBy ? `
+                                            <div class="history-detail">
+                                                <span class="history-detail-label">Modificado por:</span>
+                                                <span class="history-detail-value">${inspection.modifiedBy}</span>
+                                            </div>
+                                        ` : ''}
                                     </div>
                                     <div class="history-progress">
                                         <div class="history-progress-fill" style="width: ${inspection.completionPercentage || 0}%"></div>
@@ -4262,24 +4742,12 @@ function getRiskLabel(level) {
                 const score = totalQuestions > 0 ? Math.round((yesAnswers / totalQuestions) * 100) : 0;
                 
                 const categoryNames = {
-                    'epi': 'EPIs',
-                    'incendio': 'Incêndio',
-                    'isolamento': 'Isolamento',
-                    'quimicos': 'Químicos',
-                    'maquinas': 'Máquinas',
-                    'ferramentas': 'Ferramentas',
-                    'armazenamento': 'Armazenamento',
-                    'uniformes': 'Uniformes',
-                    'pisos': 'Pisos',
-                    'organizacao': 'Organização',
-                    'escadas': 'Escadas',
-                    'iluminacao': 'Iluminação',
-                    'bebedouros': 'Bebedouros',
-                    'banheiros': 'Banheiros',
-                    'inflamaveis': 'Inflamáveis',
-                    'eletricidade': 'Eletricidade',
-                    'escritorio': 'Escritório',
-                    'fichaEPI': 'Ficha EPI'
+                    'epi': 'EPIs', 'inc': 'Incêndio', 'iso': 'Isolamento', 'qui': 'Químicos',
+                    'maq': 'Máquinas', 'fer': 'Ferramentas', 'arm': 'Armazenamento',
+                    'uni': 'Uniformes', 'pis': 'Pisos', 'org': 'Organização',
+                    'esc': 'Escadas', 'ilu': 'Iluminação', 'beb': 'Bebedouros',
+                    'ban': 'Banheiros', 'inf': 'Inflamáveis', 'ele': 'Eletricidade',
+                    'escr': 'Escritório', 'ficha': 'Ficha EPI'
                 };
                 
                 const questionTexts = {
@@ -4321,7 +4789,8 @@ function getRiskLabel(level) {
                     'ilu2': 'As luminárias estão completas e sem lâmpadas queimadas?',
                     'ilu3': 'A iluminação ambiente atende a necessidade, ou é insuficiente?',
                     'beb1': 'Os bebedouros estão em boas condições de funcionamento, com água potável e filtro não saturado?',
-                    'beb2': 'Existem bebedouros em número suficiente para atender os colaboradores? (01 para cada 50 trabalhadores)',                    'beb3': 'Existem copos descartáveis ou dispositivos adequados para os empregados beberem água?',
+                    'beb2': 'Existem bebedouros em número suficiente para atender os colaboradores? (01 para cada 50 trabalhadores)',
+                    'beb3': 'Existem copos descartáveis ou dispositivos adequados para os empregados beberem água?',
                     'ban1': 'Os lavatórios, mictórios e sanitários estão em boas condições de uso?',
                     'ban2': 'Existem banheiros e sanitários suficientes para atender cada colaborador? (01 para cada 20 trabalhadores)',
                     'ban3': 'Os chuveiros e armários estão em boas condições de uso?',
@@ -4362,7 +4831,7 @@ function getRiskLabel(level) {
                         <tr>
                             <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${categoryName}</td>
                             <td style="border: 1px solid #ddd; padding: 8px;">${questionText}</td>
-                            <td style="border: 1px solid #ddd; padding: 8px; text-align: center; color: ${answerColor}; font-weight: bold;">${answerText}</td>
+                                                    <td style="border: 1px solid #ddd; padding: 8px; text-align: center; color: ${answerColor}; font-weight: bold;">${answerText}</td>
                         </tr>
                     `;
                 });
@@ -4439,6 +4908,12 @@ function getRiskLabel(level) {
                         <span>${inspection.photos ? inspection.photos.filter(p => p.resolved).length : 0} de ${inspection.photos ? inspection.photos.length : 0} fotos resolvidas</span>
                     </div>
                 </div>
+                ${inspection.modifiedBy ? `
+                    <div class="form-group">
+                        <label>Modificado por</label>
+                        <p>${inspection.modifiedBy}</p>
+                    </div>
+                ` : ''}
                 ${checklistHTML}
                 ${inspection.observations ? `
                     <div class="form-group">
@@ -4555,106 +5030,104 @@ function getRiskLabel(level) {
             document.getElementById('inspectionModal').classList.remove('active');
         }
         
-     function editInspection(id) {
-    const inspection = inspections.find(i => i.id === id);
-    if (!inspection) return;
-    
-    // Define o ID da inspeção sendo editada
-    currentEditingInspectionId = id;
-    
-    // Preenche o formulário com os dados da inspeção
-    document.getElementById('areaName').value = inspection.areaName;
-    document.getElementById('inspectionDate').value = inspection.date;
-    document.getElementById('deadlineDate').value = inspection.deadlineDate;
-    document.getElementById('location').value = inspection.location || '';
-    document.getElementById('observations').value = inspection.observations || '';
-    
-    setRiskLevel(inspection.riskLevel);
-    
-    if (inspection.areaPhoto) {
-        document.getElementById('areaPhotoGallery').innerHTML = `
-            <div class="photo-item">
-                <img src="${inspection.areaPhoto}" alt="Foto da Área">
-                <div class="photo-actions">
-                    <button class="photo-action-btn" onclick="deleteAreaPhoto(event, this)">
-                        🗑️
-                    </button>
-                </div>
-            </div>
-            <div class="add-photo-btn" onclick="addAreaPhoto()">
-                <span>📷</span>
-                <small>Adicionar mais fotos</small>
-            </div>
-        `;
-    }
-    
-    // *** IMPORTANTE: Cria uma cópia profunda das fotos para a edição ***
-    // Isso evita que as alterações afetem o original até que seja salvo
-    photos = JSON.parse(JSON.stringify(inspection.photos || []));
-    renderPhotoGallery();
-    
-    // *** IMPORTANTE: Cria uma cópia profunda do checklist para a edição ***
-    checklistMemory = JSON.parse(JSON.stringify(inspection.checklistData || {}));
-    
-    // Aplica o estado do checklist ao DOM
-    applyChecklistStateToDOM();
-    updateChecklistSummary();
-    
-    const submitBtn = document.getElementById('submitBtn');
-    submitBtn.textContent = '💾 Atualizar Inspeção';
-    
-    document.getElementById('formTitle').textContent = '✏️ Editar Inspeção';
-    
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    
-    closeModal();
-}
+        function editInspection(id) {
+            const inspection = inspections.find(i => i.id === id);
+            if (!inspection) return;
+            
+            currentEditingInspectionId = id;
+            
+            document.getElementById('areaName').value = inspection.areaName;
+            document.getElementById('inspectionDate').value = inspection.date;
+            document.getElementById('deadlineDate').value = inspection.deadlineDate;
+            document.getElementById('location').value = inspection.location || '';
+            document.getElementById('observations').value = inspection.observations || '';
+            
+            setRiskLevel(inspection.riskLevel);
+            
+            if (inspection.areaPhoto) {
+                document.getElementById('areaPhotoGallery').innerHTML = `
+                    <div class="photo-item">
+                        <img src="${inspection.areaPhoto}" alt="Foto da Área">
+                        <div class="photo-actions">
+                            <button class="photo-action-btn" onclick="deleteAreaPhoto(event, this)">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    <div class="add-photo-btn" onclick="addAreaPhoto()">
+                        <span>📷</span>
+                        <small>Adicionar mais fotos</small>
+                    </div>
+                `;
+            }
+            
+            photos = JSON.parse(JSON.stringify(inspection.photos || []));
+            renderPhotoGallery();
+            
+            checklistMemory = JSON.parse(JSON.stringify(inspection.checklistData || {}));
+            
+            populateChecklistForm(checklistMemory);
+            
+            updateChecklistSummary();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.textContent = '💾 Atualizar Inspeção';
+            
+            document.getElementById('formTitle').textContent = '✏️ Editar Inspeção';
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            closeModal();
+        }
 
-      function updateInspection(id) {
-    console.log("FUNÇÃO UPDATEINSPECTION CHAMADA! ID:", id); // *** LINHA DE DEBUG ***
+        function updateInspection(id) {
+            console.log("FUNÇÃO UPDATEINSPECTION CHAMADA! ID:", id);
 
-    const inspectionIndex = inspections.findIndex(i => i.id === id);
-    if (inspectionIndex === -1) return;
-    
-    if (!selectedRiskLevel) {
-        showToast('Por favor, selecione um nível de risco geral', 'error');
-        return;
-    }
+            const inspectionIndex = inspections.findIndex(i => i.id === id);
+            if (inspectionIndex === -1) return;
+            
+            if (!selectedRiskLevel) {
+                showToast('Por favor, selecione um nível de risco geral', 'error');
+                return;
+            }
 
-    if (photos.length === 0) {
-        showToast('Por favor, adicione pelo menos uma foto', 'error');
-        return;
-    }
-    
-    const areaPhotoGallery = document.getElementById('areaPhotoGallery');
-    const areaPhoto = areaPhotoGallery.querySelector('img') ? 
-        areaPhotoGallery.querySelector('img').src : null;
+            if (photos.length === 0) {
+                showToast('Por favor, adicione pelo menos uma foto', 'error');
+                return;
+            }
+            
+            const areaPhotoGallery = document.getElementById('areaPhotoGallery');
+            const areaPhoto = areaPhotoGallery.querySelector('img') ? 
+                areaPhotoGallery.querySelector('img').src : null;
+                
+            const finalChecklistData = collectChecklistData();
+            
+            inspections[inspectionIndex] = {
+                ...inspections[inspectionIndex],
+                areaName: document.getElementById('areaName').value,
+                areaPhoto: areaPhoto,
+                date: document.getElementById('inspectionDate').value,
+                deadlineDate: document.getElementById('deadlineDate').value,
+                location: document.getElementById('location').value,
+                riskLevel: selectedRiskLevel,
+                observations: document.getElementById('observations').value,
+                photos: photos,
+                checklistData: finalChecklistData,
+                status: calculateInspectionStatus(photos),
+                completionPercentage: calculateCompletionPercentage(photos),
+                timestamp: new Date().toISOString(),
+                modifiedBy: getCurrentUser(),
+                syncStatus: 'pending'
+            };
+            
+            if (saveInspections()) {
+                showToast('Inspeção atualizada com sucesso!', 'success');
+                resetForm();
+                renderInspections();
+                updateStats();
+            }
+        }
         
-    const finalChecklistData = collectChecklistData();
-    
-    inspections[inspectionIndex] = {
-        ...inspections[inspectionIndex],
-        areaName: document.getElementById('areaName').value,
-        areaPhoto: areaPhoto,
-        date: document.getElementById('inspectionDate').value,
-        deadlineDate: document.getElementById('deadlineDate').value,
-        location: document.getElementById('location').value,
-        riskLevel: selectedRiskLevel,
-        observations: document.getElementById('observations').value,
-        photos: photos, // Salva as fotos editadas da memória
-        checklistData: finalChecklistData, // Salva o checklist editado da memória
-        status: calculateInspectionStatus(photos),
-        completionPercentage: calculateCompletionPercentage(photos),
-        timestamp: new Date().toISOString()
-    };
-    
-    if (saveInspections()) {
-        showToast('Inspeção atualizada com sucesso!', 'success');
-        resetForm();
-        renderInspections();
-        updateStats();
-    }
-}
         function deleteInspection(id) {
             if (confirm('Tem certeza que deseja excluir esta inspeção? Esta ação não pode ser desfeita.')) {
                 inspections = inspections.filter(i => i.id !== id);
@@ -4702,20 +5175,6 @@ function getRiskLabel(level) {
             const completedCount = inspections.filter(i => i.status === 'completed').length;
             document.getElementById('completedCount').textContent = completedCount;
         }
-
-        function saveInspections() {
-            try {
-                localStorage.setItem('inspections', JSON.stringify(inspections));
-                localStorage.removeItem('formState');
-                localStorage.setItem('inspections_last_save', new Date().toISOString());
-                console.log('Inspeções salvas com sucesso:', inspections.length);
-                return true;
-            } catch (error) {
-                console.error('Erro ao salvar inspeções:', error);
-                showToast('Erro ao salvar inspeções', 'error');
-                return false;
-            }
-        }
         
         function showToast(message, type = 'success', duration = 3000) {
             const toast = document.getElementById('toast');
@@ -4734,7 +5193,6 @@ function getRiskLabel(level) {
             menu.classList.toggle('active');
         }
 
-        // Fecha o menu ao clicar fora
         document.addEventListener('click', function(event) {
             const menu = document.getElementById('navMenu');
             const toggle = document.querySelector('.menu-toggle');
@@ -4744,7 +5202,6 @@ function getRiskLabel(level) {
             }
         });
 
-        // Fechar modais ao clicar fora
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', function(e) {
                 if (e.target === this) {
@@ -4763,7 +5220,7 @@ function getRiskLabel(level) {
             try {
                 const pptx = new PptxGenJS();
                 
-                // Define um slide mestre simples
+                // Definir master slide
                 pptx.defineSlideMaster({
                     title: 'ZAMINE_MASTER',
                     background: { color: 'FFFFFF' },
@@ -4781,7 +5238,7 @@ function getRiskLabel(level) {
                     slideNumber: { x: 0.5, y: 7.0, w: 10, align: 'center', color: '000000' }
                 });
 
-                // --- SLIDE 1: CAPA ---
+                // Slide de capa
                 let coverSlide = pptx.addSlide();
                 
                 if (inspections.length > 0 && inspections[0].areaPhoto) {
@@ -4828,7 +5285,7 @@ function getRiskLabel(level) {
                     fontSize: 11, color: 'FFFFFF', align: 'left'
                 });
 
-                // --- SLIDE 2: INFORMAÇÕES GERAIS ---
+                // Slide de informações gerais
                 let summarySlide = pptx.addSlide({ masterName: 'ZAMINE_MASTER' });
                 summarySlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: '100%', fill: { color: 'FFFFFF' } });
                 summarySlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.6, fill: { color: 'FF6600' } });
@@ -4849,7 +5306,7 @@ function getRiskLabel(level) {
                     { label: 'Data da Inspeção', icon: '📅', value: formatDate(firstInspection.date) },
                     { label: 'Nível de Risco Geral', icon: '⚠️', value: getRiskLabel(firstInspection.riskLevel), isRisk: true, riskLevel: firstInspection.riskLevel },
                     { label: 'Total de Fotos', icon: '📷', value: firstInspection.photos ? firstInspection.photos.length : 0 },
-                    { label: 'Inspetor', icon: '👤', value: firstInspection.inspector || 'Não informado' },
+                    { label: 'Inspetor', icon: '👤', value: firstInspection.modifiedBy || 'Não informado' },
                     { label: 'Resumo do Checklist de Segurança', icon: '⚙️', value: checklistSummaryText },
                 ];
 
@@ -4869,10 +5326,7 @@ function getRiskLabel(level) {
                     currentY += 0.6;
                 });
 
-                summarySlide.addShape(pptx.ShapeType.rect, { x: 0, y: 6.5, w: '100%', h: 0.5, fill: { color: 'FF6600', transparency: 90 } });
-                summarySlide.addText('RELATÓRIO DE INSPEÇÃO DE SEGURANÇA', { x: 0.7, y: 6.5, w: 10, h: 0.5, fontSize: 8, color: '#666666', valign: 'middle' });
-
-                // --- SLIDES 3+: FOTOS DA INSPEÇÃO ---
+                // Slides de fotos
                 if (firstInspection.photos && firstInspection.photos.length > 0) {
                     const photoWidth = 4.5;
                     const photoHeight = 4.0;
@@ -4894,78 +5348,331 @@ function getRiskLabel(level) {
                             const riskText = getRiskLabel(photo.riskLevel);
                             const boxX = startX + (j * (photoWidth + gap));
 
-                            // Caixa da Foto
                             photoSlide.addShape(pptx.ShapeType.rect, { x: boxX, y: currentY, w: photoWidth, h: photoHeight, fill: { color: 'FFFFFF' }, shadow: { type: 'outer', color: '000000', blur: 4, offset: 1 } });
                             
-                            // Número da Foto e Badge de Risco
                             photoSlide.addShape(pptx.ShapeType.rect, { x: boxX, y: currentY, w: photoWidth, h: 0.4, fill: { color: 'FF6600', transparency: 90 } });
-                            photoSlide.addText(`FOTO ${String(photoNumber).padStart(2, '0')}`, { x: boxX + 0.2, y: currentY, w: 2, h: 0.4, fontSize: 12, bold: true, color: '#FF6600', valign: 'middle' });
-                            photoSlide.addText(riskText, { x: boxX + 3.3, y: currentY, w: 1.5, h: 0.4, fontSize: 12, italic: true, color: '#999999', valign: 'middle', align: 'center' });
+                            photoSlide.addText(`FOTO ${String(photoNumber).padStart(2, '0')}`, { x: boxX + 0.2, y: currentY, w: 2, h: 0.4, fontSize: 12, bold: true, color: 'FF6600', valign: 'middle' });
+                            photoSlide.addText(riskText, { x: boxX + 3.3, y: currentY, w: 1.5, h: 0.4, fontSize: 12, italic: true, color: '999999', valign: 'middle', align: 'center' });
                             
-                            // Imagem da Foto
                             photoSlide.addImage({ data: photo.src, x: boxX + 0.2, y: currentY + 0.5, w: photoWidth - 0.4, h: photoHeight - 1.0, sizing: { type: 'contain' } });
                             
-                            // Caixa de Descrição
                             photoSlide.addShape(pptx.ShapeType.rect, { x: boxX, y: currentY + 4.2, w: photoWidth, h: 0.4, fill: { color: 'FF6600' } });
-                            photoSlide.addText(photo.description || 'Sem descrição', { x: boxX + 0.2, y: currentY + 4.2, w: photoWidth - 0.2, h: 0.4, fontSize: 12, italic: true, color: '#FFFFFF', valign: 'middle' });
+                            photoSlide.addText(photo.description || 'Sem descrição', { x: boxX + 0.2, y: currentY + 4.2, w: photoWidth - 0.2, h: 0.4, fontSize: 12, italic: true, color: 'FFFFFF', valign: 'middle' });
                         }
-                        
-                        photoSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 6.7, w: '100%', h: 0.3, fill: { color: 'FF6600', transparency: 90 } });
-                        photoSlide.addText('RELATÓRIO DE INSPEÇÃO DE SEGURANÇA', { x: 0.7, y: 6.7, w: 10, h: 0.3, fontSize: 8, color: '#666666', valign: 'middle' });
                     }
                 }
 
-                // --- SLIDES FINAIS: CHECKLIST DE SEGURANÇA ---
+                // Definição dos textos das perguntas
+                const questionTexts = {
+                    'epi1': 'Possui estoque de EPIs em quantidade suficiente para atender os empregados?',
+                    'epi2': 'Os EPIs estão adequadamente higienizados?',
+                    'epi3': 'Os funcionários receberam orientações para cuidar corretamente dos EPIs?',
+                    'inc1': 'A manutenção dos equipamentos está em dia?',
+                    'inc2': 'Os lacres, selos do INMETRO e adesivos orientativos estão em perfeito estado de conservação?',
+                    'inc3': 'Os extintores estão desobstruídos?',
+                    'inc4': 'Os equipamentos de combate a incêndio estão bem sinalizados?',
+                    'inc5': 'Os extintores estão dentro do prazo de validade?',
+                    'inc6': 'A empresa que faz a recarga dos extintores tem registro no Corpo e Bombeiros?',
+                    'iso1': 'Possui equipamentos para isolamento e sinalização de área?',
+                    'iso2': 'Os equipamentos atendem em quantidades e tipos às necessidades?',
+                    'iso3': 'Os equipamentos estão em bom estado de conservação?',
+                    'iso4': 'Possui placa de manutenção de equipamento?',
+                    'qui1': 'O local possui espaço adequado para estoque de produtos químicos?',
+                    'qui2': 'Possuem as fichas de produtos químicos (FISPQ)?',
+                    'qui3': 'Os funcionários foram alertados sobre os riscos no manuseio dos produtos?',
+                    'maq1': 'As máquinas e equipamentos estão em bom estado de conservação?',
+                    'maq2': 'As correias, polias e transmissores de força possuem proteção adequada?',
+                    'maq3': 'Os dispositivos de segurança das máquinas e equipamentos funcionam corretamente?',
+                    'fer1': 'A limpeza das ferramentas manuais é realizada periodicamente?',
+                    'fer2': 'É evitado o uso inadequado ou improvisado das ferramentas e equipamentos?',
+                    'fer3': 'As caixas de ferramentas estão em boas condições?',
+                    'fer4': 'Ao término do serviço todas as ferramentas são guardadas em local apropriado?',
+                    'arm1': 'Os materiais estão empilhados ou ordenados adequadamente?',
+                    'uni1': 'Os empregados possuem uniformes limpos e em bom estado de conservação?',
+                    'uni2': 'O local possui estoque suficiente para atender as necessidades dos empregados?',
+                    'pis1': 'Os pisos apresentam uma superfície segura para o trabalhador, sem buracos e se possível com antiderrapante?',
+                    'pis2': 'O piso está livre de obstáculos?',
+                    'pis3': 'O piso está claramente demarcado em seus locais de risco?',
+                    'org1': 'Os locais de trabalho estão organizados, livres de sujeiras e de materiais?',
+                    'org2': 'As sucatas estão em locais inadequados?',
+                    'org3': 'O local possui vasilhames para coleta seletiva de lixo?',
+                    'esc1': 'Escadas metálicas têm sapatas de borracha para evitar escorregões?',
+                    'esc2': 'Os degraus estão em bom estado de condições de uso?',
+                    'ilu1': 'As luminárias encontram-se em boas condições de conservação e limpas?',
+                    'ilu2': 'As luminárias estão completas e sem lâmpadas queimadas?',
+                    'ilu3': 'A iluminação ambiente atende a necessidade, ou é insuficiente?',
+                    'beb1': 'Os bebedouros estão em boas condições de funcionamento, com água potável e filtro não saturado?',
+                    'beb2': 'Existem bebedouros em número suficiente para atender os colaboradores? (01 para cada 50 trabalhadores)',
+                    'beb3': 'Existem copos descartáveis ou dispositivos adequados para os empregados beberem água?',
+                    'ban1': 'Os lavatórios, mictórios e sanitários estão em boas condições de uso?',
+                    'ban2': 'Existem banheiros e sanitários suficientes para atender cada colaborador? (01 para cada 20 trabalhadores)',
+                    'ban3': 'Os chuveiros e armários estão em boas condições de uso?',
+                    'ban4': 'Os banheiros e vestiários são higienizados corretamente?',
+                    'inf1': 'Os depósitos de inflamáveis e combustíveis estão devidamente identificados e sinalizados?',
+                    'inf2': 'Os cilindros são armazenados de forma adequada (em pé, com capacete de proteção, separados por conteúdo e amarrados por correntes ou cordas)?',
+                    'inf3': 'Os conjuntos de oxi-corte possuem válvulas contra retrocesso de chama?',
+                    'inf4': 'Os cilindros são armazenados longe de fontes de calor?',
+                    'ele1': 'As tomadas, caixas e painéis elétricos possuem indicação de voltagem?',
+                    'ele2': 'As exigências mínimas da NR 10 estão sendo cumpridas (equipamentos / instalações)?',
+                    'ele3': 'A edificação possui aterramento elétrico?',
+                    'escr1': 'As passagens entre máquinas e móveis estão livres e desimpedidas?',
+                    'escr2': 'Os fios de máquinas e de telefones estão em boas condições e fora das passagens?',
+                    'escr3': 'As cadeiras e mesas estão com pés em bom estado?',
+                    'escr4': 'Os ventiladores possuem grade de proteção?',
+                    'escr5': 'As salas são bem ventiladas e dispõem de climatização agradável?',
+                    'escr6': 'As telas dos computadores estão na altura correta?',
+                    'escr7': 'As cadeiras possuem descanso para braços?',
+                    'ficha1': 'Possui ficha de controle de EPIs?',
+                    'ficha2': 'A ficha de controle de EPIs está em dia?'
+                };
+
+                // Processamento do checklist
                 const checklistData = inspections[0].checklistData;
                 if (checklistData) {
-                    const categoryNames = { 'epi': 'EPIs', 'inc': 'Incêndio', 'iso': 'Isolamento', 'qui': 'Químicos', 'maq': 'Máquinas', 'fer': 'Ferramentas', 'arm': 'Armazenamento', 'uni': 'Uniformes', 'pis': 'Pisos', 'org': 'Organização', 'esc': 'Escadas', 'ilu': 'Iluminação', 'beb': 'Bebedouros', 'ban': 'Banheiros', 'inf': 'Inflamáveis', 'ele': 'Eletricidade', 'escr': 'Escritório', 'ficha': 'Ficha EPI' };
-                    const questionTexts = { 'epi1': 'Possui estoque de EPIs em quantidade suficiente para atender os empregados?', 'epi2': 'Os EPIs estão adequadamente higienizados?', 'epi3': 'Os funcionários receberam orientações para cuidar corretamente dos EPIs?', 'inc1': 'A manutenção dos equipamentos está em dia?', 'inc2': 'Os lacres, selos do INMETRO e adesivos orientativos estão em perfeito estado de conservação?', 'inc3': 'Os extintores estão desobstruídos?', 'inc4': 'Os equipamentos de combate a incêndio estão bem sinalizados?', 'inc5': 'Os extintores estão dentro do prazo de validade?', 'inc6': 'A empresa que faz a recarga dos extintores tem registro no Corpo e Bombeiros?', 'iso1': 'Possui equipamentos para isolamento e sinalização de área?', 'iso2': 'Os equipamentos atendem em quantidades e tipos às necessidades?', 'iso3': 'Os equipamentos estão em bom estado de conservação?', 'iso4': 'Possui placa de manutenção de equipamento?', 'qui1': 'O local possui espaço adequado para estoque de produtos químicos?', 'qui2': 'Possuem as fichas de produtos químicos (FISPQ)?', 'qui3': 'Os funcionários foram alertados sobre os riscos no manuseio dos produtos?', 'maq1': 'As máquinas e equipamentos estão em bom estado de conservação?', 'maq2': 'As correias, polias e transmissores de força possuem proteção adequada?', 'maq3': 'Os dispositivos de segurança das máquinas e equipamentos funcionam corretamente?', 'fer1': 'A limpeza das ferramentas manuais é realizada periodicamente?', 'fer2': 'É evitado o uso inadequado ou improvisado das ferramentas e equipamentos?', 'fer3': 'As caixas de ferramentas estão em boas condições?', 'fer4': 'Ao término do serviço todas as ferramentas são guardadas em local apropriado?', 'arm1': 'Os materiais estão empilhados ou ordenados adequadamente?', 'uni1': 'Os empregados possuem uniformes limpos e em bom estado de conservação?', 'uni2': 'O local possui estoque suficiente para atender as necessidades dos empregados?', 'pis1': 'Os pisos apresentam uma superfície segura para o trabalhador, sem buracos e se possível com antiderrapante?', 'pis2': 'O piso está livre de obstáculos?', 'pis3': 'O piso está claramente demarcado em seus locais de risco?', 'org1': 'Os locais de trabalho estão organizados, livres de sujeiras e de materiais?', 'org2': 'As sucatas estão em locais inadequados?', 'org3': 'O local possui vasilhames para coleta seletiva de lixo?', 'esc1': 'Escadas metálicas têm sapatas de borracha para evitar escorregões?', 'esc2': 'Os degraus estão em bom estado de condições de uso?', 'ilu1': 'As luminárias encontram-se em boas condições de conservação e limpas?', 'ilu2': 'As luminárias estão completas e sem lâmpadas queimadas?', 'ilu3': 'A iluminação ambiente atende a necessidade, ou é insuficiente?', 'beb1': 'Os bebedouros estão em boas condições de funcionamento, com água potável e filtro não saturado?', 'beb2': 'Existem bebedouros em número suficiente para atender os colaboradores? (01 para cada 50 trabalhadores)', 'beb3': 'Existem copos descartáveis ou dispositivos adequados para os empregados beberem água?', 'ban1': 'Os lavatórios, mictórios e sanitários estão em boas condições de uso?', 'ban2': 'Existem banheiros e sanitários suficientes para atender cada colaborador? (01 para cada 20 trabalhadores)', 'ban3': 'Os chuveiros e armários estão em boas condições de uso?', 'ban4': 'Os banheiros e vestiários são higienizados corretamente?', 'inf1': 'Os depósitos de inflamáveis e combustíveis estão devidamente identificados e sinalizados?', 'inf2': 'Os cilindros são armazenados de forma adequada (em pé, com capacete de proteção, separados por conteúdo e amarrados por correntes ou cordas)?', 'inf3': 'Os conjuntos de oxi-corte possuem válvulas contra retrocesso de chama?', 'inf4': 'Os cilindros são armazenados longe de fontes de calor?', 'ele1': 'As tomadas, caixas e painéis elétricos possuem indicação de voltagem?', 'ele2': 'As exigências mínimas da NR 10 estão sendo cumpridas (equipamentos / instalações)?', 'ele3': 'A edificação possui aterramento elétrico?', 'escr1': 'As passagens entre máquinas e móveis estão livres e desimpedidas?', 'escr2': 'Os fios de máquinas e de telefones estão em boas condições e fora das passagens?', 'escr3': 'As cadeiras e mesas estão com pés em bom estado?', 'escr4': 'Os ventiladores possuem grade de proteção?', 'escr5': 'As salas são bem ventiladas e dispõem de climatização agradável?', 'escr6': 'As telas dos computadores estão na altura correta?', 'escr7': 'As cadeiras possuem descanso para braços?', 'ficha1': 'Possui ficha de controle de EPIs?', 'ficha2': 'A ficha de controle de EPIs está em dia?' };
-                    const questionsByCategory = {};
+                    const categoryNames = {
+                        'epi': 'EPIs', 'inc': 'Incêndio', 'iso': 'Isolamento', 'qui': 'Químicos',
+                        'maq': 'Máquinas', 'fer': 'Ferramentas', 'arm': 'Armazenamento',
+                        'uni': 'Uniformes', 'pis': 'Pisos', 'org': 'Organização',
+                        'esc': 'Escadas', 'ilu': 'Iluminação', 'beb': 'Bebedouros',
+                        'ban': 'Banheiros', 'inf': 'Inflamáveis', 'ele': 'Eletricidade',
+                        'escr': 'Escritório', 'ficha': 'Ficha EPI'
+                    };
+                    
+                    // Agrupar perguntas por categoria e calcular estatísticas
+                    const categoryStats = {};
                     for (const key in checklistData) {
                         const category = key.replace(/\d+$/, '');
-                        if (!questionsByCategory[category]) {
-                            questionsByCategory[category] = [];
+                        if (!categoryStats[category]) {
+                            categoryStats[category] = {
+                                name: categoryNames[category] || category,
+                                sim: 0,
+                                nao: 0,
+                                na: 0
+                            };
                         }
-                        questionsByCategory[category].push({ key, value: checklistData[key] });
+                        categoryStats[category][checklistData[key]]++;
                     }
-
-                    for (const category in questionsByCategory) {
-                        const categoryName = categoryNames[category] || category;
+                    
+                    // Criar slides para cada categoria
+                    for (const category in categoryStats) {
+                        const stats = categoryStats[category];
+                        const questions = [];
+                        for (const key in checklistData) {
+                            if (key.startsWith(category)) {
+                                questions.push({ key, value: checklistData[key] });
+                            }
+                        }
+                        
+                        // Criar slide para a categoria
                         let checklistSlide = pptx.addSlide({ masterName: 'ZAMINE_MASTER' });
                         checklistSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: '100%', fill: { color: 'FFFFFF' } });
-                        checklistSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.3, fill: { color: 'FF6600' } });
-                        checklistSlide.addText(`Checklist de Segurança - ${categoryName}`, { x: 0, y: 0.05, w: '100%', h: 0.2, fontSize: 10, bold: true, align: 'center', color: 'FFFFFF', fontFace: 'Arial' });
-
-                        let currentY = 0.6;
-                        questionsByCategory[category].forEach(q => {
-                            const questionText = questionTexts[q.key] || q.key;
-                            const statusText = q.value === 'sim' ? 'Sim' : q.value === 'nao' ? 'Não' : 'N/A';
-
-                            checklistSlide.addShape(pptx.ShapeType.rect, { x: 0.5, y: currentY, w: 8.5, h: 0.25, fill: { color: 'FFFFFF' }, shadow: { type: 'outer', color: '000000', blur: 2, offset: 1 } });
-                            checklistSlide.addShape(pptx.ShapeType.rect, { x: 0.5, y: currentY, w: 1.8, h: 0.25, fill: { color: 'FF6600', transparency: 90 } });
-                            checklistSlide.addText(categoryName, { x: 0.5, y: currentY, w: 1.8, h: 0.25, fontSize: 10, bold: true, color: '#FF6600', valign: 'middle', align: 'center' });
-                            checklistSlide.addText(questionText, { x: 2.4, y: currentY, w: 5.2, h: 0.25, fontSize: 10, color: '#000000', valign: 'middle' });
-                            checklistSlide.addText(statusText, { x: 7.7, y: currentY, w: 1.5, h: 0.25, fontSize: 10, color: '#999999', italic: true, valign: 'middle', align: 'center' });
-                            currentY += 0.3;
+                        checklistSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.5, fill: { color: 'FF6600' } });
+                        checklistSlide.addText(`Checklist de Segurança - ${stats.name}`, { 
+                            x: 0, y: 0.1, w: '100%', h: 0.3, 
+                            fontSize: 18, bold: true, align: 'center', color: 'FFFFFF', fontFace: 'Arial' 
                         });
-
-                        const totalQuestions = questionsByCategory[category].length;
-                        const yesAnswers = questionsByCategory[category].filter(q => q.value === 'sim').length;
+                        
+                        // Calcular estatísticas da categoria
+                        const totalQuestions = questions.length;
+                        const yesAnswers = stats.sim;
+                        const noAnswers = stats.nao;
+                        const naAnswers = stats.na;
                         const score = totalQuestions > 0 ? Math.round((yesAnswers / totalQuestions) * 100) : 0;
-                        const scoreStatus = score >= 80 ? 'Conformidade Alta' : score >= 50 ? 'Conformidade Média' : 'Requer Atenção';
-                        const scoreBoxY = currentY + 0.5;
-                        const scoreBoxX = 3.5;
-
-                        checklistSlide.addShape(pptx.ShapeType.rect, { x: scoreBoxX, y: scoreBoxY, w: 2.5, h: 0.6, fill: { color: 'FFFFFF' }, shadow: { type: 'outer', color: '000000', blur: 2, offset: 1 } });
-                        checklistSlide.addText('PONTUAÇÃO', { x: scoreBoxX, y: scoreBoxY + 0.05, w: 2.5, h: 0.15, fontSize: 10, bold: true, color: '#333', align: 'center' });
-                        checklistSlide.addText(`${score}%`, { x: scoreBoxX, y: scoreBoxY + 0.2, w: 2.5, h: 0.25, fontSize: 20, bold: true, color: '#FF6600', align: 'center' });
-                        checklistSlide.addText(scoreStatus, { x: scoreBoxX, y: scoreBoxY + 0.45, w: 2.5, h: 0.15, fontSize: 10, color: '#666', align: 'center' });
-
-                        checklistSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 6.7, w: '100%', h: 0.3, fill: { color: 'FF6600', transparency: 90 } });
-                        checklistSlide.addText('RELATÓRIO DE INSPEÇÃO DE SEGURANÇA', { x: 0.7, y: 6.7, w: 10, h: 0.3, fontSize: 8, color: '#666666', valign: 'middle' });
+                        
+                        // Adicionar resumo da categoria no topo - REDUZIDO
+                        checklistSlide.addShape(pptx.ShapeType.rect, { 
+                            x: 0.3, y: 0.6, w: 9.4, h: 0.6, 
+                            fill: { color: 'F5F5F5' }, 
+                            shadow: { type: 'outer', color: '000000', blur: 2, offset: 1 } 
+                        });
+                        
+                        // Título do resumo
+                        checklistSlide.addText('Resumo da Categoria', { 
+                            x: 0.3, y: 0.6, w: 9.4, h: 0.2, 
+                            fontSize: 12, bold: true, color: '333333', align: 'center' 
+                        });
+                        
+                        // Estatísticas - EM UMA ÚNICA LINHA
+                        checklistSlide.addText(`Total: ${totalQuestions} | Sim: ${yesAnswers} | Não: ${noAnswers} | N/A: ${naAnswers}`, { 
+                            x: 0.3, y: 0.8, w: 9.4, h: 0.2, 
+                            fontSize: 10, color: '666666', align: 'center' 
+                        });
+                        
+                        // Pontuação
+                        const scoreColor = score >= 80 ? '28A745' : score >= 50 ? 'FFC107' : 'DC3545';
+                        checklistSlide.addText(`Pontuação: ${score}%`, { 
+                            x: 0.3, y: 1.0, w: 9.4, h: 0.2, 
+                            fontSize: 14, bold: true, color: scoreColor, align: 'center' 
+                        });
+                        
+                        // Adicionar cada pergunta - ESPAÇAMENTO REDUZIDO
+                        let currentY = 1.3; // Reduzido de 1.9
+                        const questionHeight = 0.35; // Reduzido de 0.6
+                        const questionGap = 0.05; // Reduzido de 0.1
+                        
+                        questions.forEach(q => {
+                            const questionText = questionTexts[q.key] || q.key;
+                            const answerText = q.value === 'sim' ? '✅ Sim' : 
+                                              q.value === 'nao' ? '❌ Não' : 
+                                              '⚪ N/A';
+                            const answerColor = q.value === 'sim' ? '28A745' : 
+                                              q.value === 'nao' ? 'DC3545' : 
+                                              '6C757D';
+                            
+                            // Caixa para a pergunta - TAMANHO REDUZIDO
+                            checklistSlide.addShape(pptx.ShapeType.rect, { 
+                                x: 0.3, y: currentY, w: 9.4, h: questionHeight, 
+                                fill: { color: 'FFFFFF' }, 
+                                shadow: { type: 'outer', color: '000000', blur: 1, offset: 0.5 } 
+                            });
+                            
+                            // Categoria - TAMANHO REDUZIDO
+                            checklistSlide.addShape(pptx.ShapeType.rect, { 
+                                x: 0.3, y: currentY, w: 1.5, h: questionHeight, 
+                                fill: { color: 'FF6600', transparency: 90 } 
+                            });
+                            checklistSlide.addText(stats.name, { 
+                                x: 0.3, y: currentY, w: 1.5, h: questionHeight, 
+                                fontSize: 10, bold: true, color: 'FF6600', valign: 'middle', align: 'center' 
+                            });
+                            
+                            // Pergunta - FONTE MENOR
+                            checklistSlide.addText(questionText, { 
+                                x: 1.8, y: currentY + 0.05, w: 5.5, h: questionHeight - 0.1, 
+                                fontSize: 9, color: '000000', valign: 'middle' 
+                            });
+                            
+                            // Resposta - POSIÇÃO AJUSTADA
+                            checklistSlide.addText(answerText, { 
+                                x: 7.3, y: currentY, w: 2.4, h: questionHeight, 
+                                fontSize: 10, bold: true, color: answerColor, valign: 'middle', align: 'center' 
+                            });
+                            
+                            currentY += questionHeight + questionGap;
+                        });
                     }
+                    
+                    // Adicionar slide de resumo geral do checklist com gráfico de barras horizontais
+                    let summaryGeneralSlide = pptx.addSlide({ masterName: 'ZAMINE_MASTER' });
+                    summaryGeneralSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: '100%', fill: { color: 'FFFFFF' } });
+                    summaryGeneralSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.6, fill: { color: 'FF6600' } });
+                    summaryGeneralSlide.addText('Resumo Geral do Checklist', { 
+                        x: 0, y: 0.1, w: '100%', h: 0.4, 
+                        fontSize: 20, bold: true, align: 'center', color: 'FFFFFF', fontFace: 'Arial' 
+                    });
+                    
+                    // Preparar dados para o gráfico de barras horizontais
+                    const categories = Object.keys(categoryStats).map(cat => categoryStats[cat].name);
+                    const simData = Object.keys(categoryStats).map(cat => categoryStats[cat].sim);
+                    const naoData = Object.keys(categoryStats).map(cat => categoryStats[cat].nao);
+                    const naData = Object.keys(categoryStats).map(cat => categoryStats[cat].na);
+                    
+                    // Adicionar gráfico de barras horizontais
+                    const chartData = [
+                        {
+                            name: 'Sim',
+                            labels: categories,
+                            values: simData
+                        },
+                        {
+                            name: 'Não',
+                            labels: categories,
+                            values: naoData
+                        },
+                        {
+                            name: 'N/A',
+                            labels: categories,
+                            values: naData
+                        }
+                    ];
+
+                    summaryGeneralSlide.addChart(pptx.ChartType.bar, chartData, {
+                        x: 0.5, y: 1.2, w: 4.5, h: 3.5, // Ajustado para caber melhor
+                        barDir: 'bar', // Barras horizontais
+                        showLegend: true,
+                        legendPos: 'r',
+                        legendFontFace: 'Arial',
+                        legendFontSize: 10,
+                        dataLabelFormatCode: '#,##0',
+                        showDataLabels: true,
+                        dataLabelFontFace: 'Arial',
+                        dataLabelFontSize: 9, // Reduzido
+                        dataLabelColor: 'FFFFFF',
+                        title: 'Respostas por Categoria',
+                        titleFontFace: 'Arial',
+                        titleFontSize: 12, // Reduzido
+                        titleColor: '333333',
+                        catAxisLabelColor: '333333',
+                        catAxisLabelFontFace: 'Arial',
+                        catAxisLabelFontSize: 8,
+                        valAxisLabelColor: '333333',
+                        valAxisLabelFontFace: 'Arial',
+                        valAxisLabelFontSize: 8,
+                        valAxisMaxVal: Math.max(...simData, ...naoData, ...naData) + 1,
+                        barGapWidthPct: 20, // Reduzido
+                        barGrouping: 'stacked',
+                        chartColors: ['28A745', 'DC3545', '6C757D'],
+                        showCatAxisLines: false,
+                        showValAxisLines: false,
+                        gridLine: { color: 'FFFFFF', size: 0 }
+                    });
+                    
+                    // Calcular estatísticas gerais
+                    const allQuestions = Object.keys(checklistData);
+                    const totalQuestions = allQuestions.length;
+                    const yesAnswers = allQuestions.filter(key => checklistData[key] === 'sim').length;
+                    const noAnswers = allQuestions.filter(key => checklistData[key] === 'nao').length;
+                    const naAnswers = allQuestions.filter(key => checklistData[key] === 'na').length;
+                    const score = totalQuestions > 0 ? Math.round((yesAnswers / totalQuestions) * 100) : 0;
+                    
+                    // Adicionar estatísticas em texto - LAYOUT OTIMIZADO
+                    summaryGeneralSlide.addText(`Total de Perguntas: ${totalQuestions}`, { 
+                        x: 5.5, y: 1.2, w: 3.5, h: 0.4, 
+                        fontSize: 12, bold: true, color: '333333' 
+                    });
+                    
+                    summaryGeneralSlide.addText(`Respostas "Sim": ${yesAnswers}`, { 
+                        x: 5.5, y: 1.7, w: 3.5, h: 0.4, 
+                        fontSize: 11, color: '28A745' 
+                    });
+                    
+                    summaryGeneralSlide.addText(`Respostas "Não": ${noAnswers}`, { 
+                        x: 5.5, y: 2.2, w: 3.5, h: 0.4, 
+                        fontSize: 11, color: 'DC3545' 
+                    });
+                    
+                    summaryGeneralSlide.addText(`Respostas "N/A": ${naAnswers}`, { 
+                        x: 5.5, y: 2.7, w: 3.5, h: 0.4, 
+                        fontSize: 11, color: '6C757D' 
+                    });
+                    
+                    // Pontuação geral - TAMANHO REDUZIDO
+                    const scoreColor = score >= 80 ? '28A745' : score >= 50 ? 'FFC107' : 'DC3545';
+                    const scoreStatus = score >= 80 ? 'Conformidade Alta' : score >= 50 ? 'Conformidade Média' : 'Requer Atenção';
+                    
+                    summaryGeneralSlide.addShape(pptx.ShapeType.rect, { 
+                        x: 5.5, y: 3.4, w: 3.5, h: 1.0, // Reduzido
+                        fill: { color: 'F5F5F5' }, 
+                        shadow: { type: 'outer', color: '000000', blur: 2, offset: 1 } 
+                    });
+                    
+                    summaryGeneralSlide.addText('Pontuação Geral', { 
+                        x: 5.5, y: 3.4, w: 3.5, h: 0.25, 
+                        fontSize: 12, bold: true, color: '333333', align: 'center' 
+                    });
+                    
+                    summaryGeneralSlide.addText(`${score}%`, { 
+                        x: 5.5, y: 3.7, w: 3.5, h: 0.4, 
+                        fontSize: 24, bold: true, color: scoreColor, align: 'center' 
+                    });
+                    
+                    summaryGeneralSlide.addText(scoreStatus, { 
+                        x: 5.5, y: 4.1, w: 3.5, h: 0.25, 
+                        fontSize: 11, color: scoreColor, align: 'center' 
+                    });
                 }
 
+                // Gerar o arquivo
                 pptx.writeFile({ fileName: `relatorio_inspecoes_${new Date().toISOString().split('T')[0]}.pptx` }).then(() => {
                     const totalSlides = pptx.slides.length;
                     showToast(`Relatório exportado com sucesso (${totalSlides} slides)!`, 'success');
@@ -4974,6 +5681,29 @@ function getRiskLabel(level) {
             } catch (error) {
                 console.error("Erro ao gerar PPT:", error);
                 showToast('Ocorreu um erro ao gerar o arquivo PPT. Verifique o console do navegador (F12) para mais detalhes.', 'error');
+            }
+        }
+        
+        function populateChecklistForm(checklistData) {
+            document.querySelectorAll('.checklist-question input[type="radio"]').forEach(input => {
+                input.checked = false;
+            });
+
+            if (!checklistData) {
+                console.log("populateChecklistForm: Nenhum dado de checklist para popular.");
+                return;
+            }
+
+            for (const inputName in checklistData) {
+                const answerValue = checklistData[inputName];
+                
+                const radioToCheck = document.querySelector(`input[name="${inputName}"][value="${answerValue}"]`);
+                
+                if (radioToCheck) {
+                    radioToCheck.checked = true;
+                } else {
+                    console.warn(`Campo do checklist não encontrado: name="${inputName}", value="${answerValue}"`);
+                }
             }
         }
     </script>
