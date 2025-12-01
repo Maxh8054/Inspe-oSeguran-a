@@ -2836,7 +2836,228 @@
                 updateNetworkConfigUI();
             }
         }
+// Adicione esta função para forçar sincronização
+function forceSync() {
+    syncData().then(() => {
+        console.log('Sincronização forçada concluída');
+        renderInspections();
+        updateStats();
+    });
+}
 
+// Modifique a função saveInspections
+async function saveInspections() {
+    try {
+        const data = {
+            inspections: inspections,
+            lastModified: new Date().toISOString(),
+            version: '1.0',
+            forceUpdate: true // Flag para forçar atualização
+        };
+
+        const response = await fetch(`${API_BASE_URL}/inspections`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User': getCurrentUser() || 'anonymous',
+                'Cache-Control': 'no-cache'
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success) {
+            // Limpar cache local
+            localStorage.removeItem('inspections');
+            localStorage.removeItem('lastSync');
+            
+            // Forçar sincronização em todos os clientes
+            setTimeout(() => {
+                if (typeof broadcastChannel !== 'undefined') {
+                    broadcastChannel.postMessage({
+                        type: 'UPDATE',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            }, 1000);
+            
+            updateSyncStatus('success', `Salvo em ${new Date().toLocaleTimeString('pt-BR')}`);
+            return true;
+        } else {
+            throw new Error(result.error || 'Erro ao salvar');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao salvar:', error);
+        updateSyncStatus('error', 'Falha ao salvar');
+        showToast(`Erro: ${error.message}`, 'error');
+        return false;
+    }
+}
+// Adicione no início do seu script
+let broadcastChannel;
+let lastSyncTimestamp = null;
+
+// Inicializar canal de comunicação
+function initializeBroadcastChannel() {
+    try {
+        broadcastChannel = new BroadcastChannel('inspections_sync');
+        
+        broadcastChannel.onmessage = (event) => {
+            if (event.data.type === 'UPDATE') {
+                console.log('Recebida atualização de outro cliente');
+                forceSync();
+            }
+        };
+    } catch (error) {
+        console.log('Broadcast Channel não suportado');
+    }
+}
+// api/inspections/route.js
+export default async function handler(req, res) {
+  // Configurar headers anti-cache
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-User');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  try {
+    const { method } = req;
+    const key = 'inspections';
+
+    switch (method) {
+      case 'GET':
+        // Adicionar timestamp para evitar cache
+        const timestamp = Date.now();
+        const inspections = await kv.get(key);
+        
+        return res.json({
+          inspections: inspections ? JSON.parse(inspections) : [],
+          lastModified: new Date().toISOString(),
+          timestamp: timestamp,
+          version: '1.0',
+          cacheBust: Math.random() // Força atualização
+        });
+
+      case 'POST':
+        const data = req.body;
+        
+        if (!data || !data.inspections) {
+          return res.status(400).json({ error: 'Dados inválidos' });
+        }
+
+        // Adicionar timestamp único
+        const enrichedData = {
+          ...data,
+          lastModified: new Date().toISOString(),
+          serverVersion: '1.0',
+          modifiedBy: req.headers['x-user'] || 'anonymous',
+          updateId: uuidv4() // ID único para cada atualização
+        };
+
+        // Salvar no KV Store
+        await kv.set(key, JSON.stringify(enrichedData.inspections));
+        
+        // Criar notificação de atualização
+        const notification = {
+          type: 'UPDATE',
+          timestamp: new Date().toISOString(),
+          updateId: enrichedData.updateId,
+          modifiedBy: enrichedData.modifiedBy
+        };
+        
+        await kv.set('last_update', JSON.stringify(notification));
+
+        return res.json({
+          success: true,
+          timestamp: new Date().toISOString(),
+          inspections_count: enrichedData.inspections.length,
+          updateId: enrichedData.updateId
+        });
+
+      default:
+        return res.status(405).json({ error: 'Método não permitido' });
+    }
+  } catch (error) {
+    console.error('Erro na API:', error);
+    return res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      details: error.message 
+    });
+  }
+}
+// Sistema de verificação de atualizações
+let lastKnownUpdate = null;
+
+async function checkForUpdates() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/inspections`, {
+            method: 'GET',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'X-Last-Known-Update': lastKnownUpdate || ''
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // Verificar se há atualizações
+        if (data.lastModified !== lastKnownUpdate) {
+            console.log('Detectada atualização no servidor');
+            lastKnownUpdate = data.lastModified;
+            
+            // Atualizar dados locais
+            inspections = data.inspections || [];
+            renderInspections();
+            updateStats();
+            
+            showToast('Dados atualizados!', 'success');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao verificar atualizações:', error);
+    }
+}
+
+// Verificar atualizações periodicamente
+setInterval(checkForUpdates, 15000); // A cada 15 segundos
+// Modifique a função de inicialização
+document.addEventListener('DOMContentLoaded', function() {
+    initializeBroadcastChannel();
+    initializeApp();
+    
+    // Forçar sincronização a cada 30 segundos
+    setInterval(() => {
+        forceSync();
+    }, 30000);
+    
+    // Forçar sincronização quando a página ganha foco
+    window.addEventListener('focus', () => {
+        forceSync();
+    });
+    
+    // Forçar sincronização quando a página fica visível
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            forceSync();
+        }
+    });
+});
         // Salvar configuração de rede
         function saveNetworkConfigToStorage() {
             localStorage.setItem('networkConfig', JSON.stringify(networkConfig));
